@@ -1,0 +1,934 @@
+/**
+ * Sentinel CLI — Cross-platform schema validation and code generation.
+ *
+ * Enforces sync between iOS (Swift), Android (Kotlin), Backend (TypeScript/NestJS),
+ * and Web frontends. Reads all output paths from sentinel.yaml — works for any project.
+ *
+ * Commands:
+ *   schema:validate  — Validate schemas, check stale generated files, warn on unused keys.
+ *   schema:generate  — Generate all platform files from schemas.
+ *   contracts        — Validate API endpoint contracts.
+ *   mock:generate    — Generate MockURLProtocol.swift + MockDispatcher.kt.
+ *   mock:validate    — Validate fixture JSON against endpoint schemas.
+ *   registry:scan    — Find screen files not registered in sentinel.yaml screens:.
+ *   all              — validate → generate → mock:generate.
+ */
+
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs'
+import { join, dirname, basename } from 'path'
+import chalk from 'chalk'
+import { loadConfig } from '../config/loader.js'
+import { generateAll } from '../schema/index.js'
+import { checkStaleness } from '../schema/validators/staleness.js'
+import { scanRegistry } from '../catalog/registry.js'
+import type { ResolvedConfig } from '../config/types.js'
+
+// ---------------------------------------------------------------------------
+// Schema loading
+// ---------------------------------------------------------------------------
+
+interface SchemaFile {
+  filename: string
+  content: Record<string, unknown>
+}
+
+function loadDir(schemasDir: string, subdir: string): SchemaFile[] {
+  const dir = join(schemasDir, subdir)
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => ({
+      filename: f,
+      content: JSON.parse(readFileSync(join(dir, f), 'utf8')) as Record<string, unknown>,
+    }))
+}
+
+function loadAll(schemasDir: string) {
+  return {
+    design:   loadDir(schemasDir, 'design'),
+    features: loadDir(schemasDir, 'features'),
+    models:   loadDir(schemasDir, 'models'),
+    platform: loadDir(schemasDir, 'platform'),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function writeFile(filePath: string, content: string, projectRoot: string): void {
+  const dir = dirname(filePath)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(filePath, content, 'utf8')
+  console.log(`  wrote ${filePath.replace(projectRoot + '/', '')}`)
+}
+
+function isPrimitiveType(t: string): boolean {
+  return ['String', 'Int', 'Double', 'Float', 'Bool', 'Date', 'UUID', 'Void'].includes(t)
+}
+
+function deriveKotlinPackage(outputPath: string): string {
+  const match = outputPath.match(/kotlin\/(.+)\/[^/]+\.kt$/)
+  if (match) return match[1].replace(/\//g, '.')
+  return 'app.sentinel.mock'
+}
+
+// ---------------------------------------------------------------------------
+// schema:validate
+// ---------------------------------------------------------------------------
+
+function cmdValidate(): void {
+  const config = loadConfig()
+  const all = loadAll(config.schemasDir)
+  const errors: string[] = []
+  const warnings: string[] = []
+
+  // Build reference sets for cross-validation
+  const stringsSchema = all.design.find((s) => s.content['type'] === 'strings')?.content
+  const flagsSchema   = all.platform.find((s) => s.content['type'] === 'feature-flags')?.content
+  const allStringKeys = new Set(Object.keys((stringsSchema?.['strings'] as Record<string, string>) ?? {}))
+  const allFlagKeys   = new Set(((flagsSchema?.['flags'] as { key: string }[]) ?? []).map((f) => f.key))
+  const allModelNames = new Set(all.models.map((s) => s.content['name'] as string).filter(Boolean))
+
+  const referencedStringKeys = new Set<string>()
+  const referencedModelNames = new Set<string>()
+
+  const check = (filename: string, schema: Record<string, unknown>) => {
+    if (!schema['$sentinel']) errors.push(`${filename}: missing '$sentinel' field`)
+    if (!schema['type'])      errors.push(`${filename}: missing 'type' field`)
+
+    switch (schema['type']) {
+      case 'tokens':
+        if (!schema['colors'])     errors.push(`${filename}: missing 'colors'`)
+        if (!schema['typography']) errors.push(`${filename}: missing 'typography'`)
+        if (!schema['spacing'])    errors.push(`${filename}: missing 'spacing'`)
+        break
+
+      case 'strings':
+        if (!Array.isArray(schema['locales']) || !(schema['locales'] as unknown[]).length)
+          errors.push(`${filename}: missing 'locales' array`)
+        if (typeof schema['strings'] !== 'object')
+          errors.push(`${filename}: missing 'strings' object`)
+        break
+
+      case 'feature-flags':
+        if (!Array.isArray(schema['flags']))
+          errors.push(`${filename}: missing 'flags' array`)
+        break
+
+      case 'navigation':
+        if (!Array.isArray(schema['tabs']))   errors.push(`${filename}: missing 'tabs' array`)
+        if (!Array.isArray(schema['routes'])) errors.push(`${filename}: missing 'routes' array`)
+        break
+
+      case 'feature':
+        if (!schema['id'])        errors.push(`${filename}: missing 'id'`)
+        if (!schema['name'])      errors.push(`${filename}: missing 'name'`)
+        if (!schema['milestone']) errors.push(`${filename}: missing 'milestone'`)
+        for (const m of (schema['models'] as string[]) ?? []) {
+          if (!allModelNames.has(m)) errors.push(`${filename}: references unknown model '${m}'`)
+          else referencedModelNames.add(m)
+        }
+        for (const f of (schema['flags'] as string[]) ?? []) {
+          if (!allFlagKeys.has(f)) errors.push(`${filename}: references unknown flag '${f}'`)
+        }
+        for (const sk of (schema['strings'] as string[]) ?? []) {
+          if (!allStringKeys.has(sk)) errors.push(`${filename}: references unknown string key '${sk}'`)
+          else referencedStringKeys.add(sk)
+        }
+        break
+
+      case 'model':
+        if (!schema['id'])   errors.push(`${filename}: missing 'id'`)
+        if (!schema['name']) errors.push(`${filename}: missing 'name'`)
+        if (!schema['isEnum'] && !Array.isArray(schema['fields']))
+          errors.push(`${filename}: must have 'isEnum: true' or 'fields' array`)
+        if (schema['isEnum'] && !Array.isArray(schema['enumValues']))
+          errors.push(`${filename}: enum model missing 'enumValues'`)
+        break
+
+      case 'endpoints': {
+        if (!schema['id']) errors.push(`${filename}: missing 'id'`)
+        if (!Array.isArray(schema['endpoints'])) {
+          errors.push(`${filename}: missing 'endpoints' array`)
+          break
+        }
+        const eps = schema['endpoints'] as Array<Record<string, unknown>>
+        for (const ep of eps) {
+          if (!ep['id'])     errors.push(`${filename}: endpoint missing 'id'`)
+          if (!ep['method']) errors.push(`${filename}: endpoint '${ep['id']}' missing 'method'`)
+          if (!ep['path'])   errors.push(`${filename}: endpoint '${ep['id']}' missing 'path'`)
+          const resp = ep['response'] as Record<string, unknown> | undefined
+          if (resp?.['type'] && typeof resp['type'] === 'string' && !isPrimitiveType(resp['type'])) {
+            if (!allModelNames.has(resp['type']))
+              errors.push(`${filename}: endpoint '${ep['id']}' response type '${resp['type']}' is not a known model`)
+            else referencedModelNames.add(resp['type'] as string)
+          }
+          const body = ep['body'] as Record<string, unknown> | undefined
+          if (body?.['type'] && typeof body['type'] === 'string' && !isPrimitiveType(body['type'])) {
+            if (!allModelNames.has(body['type']))
+              errors.push(`${filename}: endpoint '${ep['id']}' body type '${body['type']}' is not a known model`)
+            else referencedModelNames.add(body['type'] as string)
+          }
+        }
+        break
+      }
+
+      case 'mock-config':
+        if (!Array.isArray(schema['fixtures']))
+          errors.push(`${filename}: missing 'fixtures' array`)
+        break
+
+      default:
+        break
+    }
+  }
+
+  for (const { filename, content } of [...all.design, ...all.features, ...all.models, ...all.platform]) {
+    check(filename, content)
+  }
+
+  // ── Unused string keys ─────────────────────────────────────────────────────
+  for (const key of allStringKeys) {
+    if (!referencedStringKeys.has(key))
+      warnings.push(`strings.json: key '${key}' defined but not referenced by any feature schema`)
+  }
+
+  // ── Unreferenced models ───────────────────────────────────────────────────
+  for (const name of allModelNames) {
+    if (!referencedModelNames.has(name))
+      warnings.push(`model '${name}' not referenced by any feature or endpoint schema`)
+  }
+
+  // ── Staleness detection (hash-based, CI-safe) ─────────────────────────────
+  const staleness = checkStaleness(config)
+  for (const issue of staleness.issues) {
+    if (issue.severity === 'error') errors.push(issue.message)
+    else warnings.push(issue.message)
+  }
+
+  // ── Mock fixture warnings ─────────────────────────────────────────────────
+  validateMocks(all, warnings, config.projectRoot)
+
+  const total = all.design.length + all.features.length + all.models.length + all.platform.length
+
+  if (warnings.length > 0) {
+    console.warn(`\n  Warnings (${warnings.length}):`)
+    warnings.forEach((w) => console.warn(`    ⚠  ${w}`))
+  }
+
+  if (errors.length > 0) {
+    console.error(`\n✗ Schema validation failed:\n`)
+    errors.forEach((e) => console.error(`  • ${e}`))
+    console.error(`\n${errors.length} error(s) in ${total} schemas.\n`)
+    process.exit(1)
+  } else {
+    console.log(`\n✓ All ${total} schemas valid.`)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mock fixture validation
+// ---------------------------------------------------------------------------
+
+interface FixtureDirConfig { platform: string; path: string }
+
+function walkJsonFiles(dir: string): string[] {
+  if (!existsSync(dir)) return []
+  const results: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) results.push(...walkJsonFiles(full))
+    else if (entry.isFile() && entry.name.endsWith('.json')) results.push(full)
+  }
+  return results
+}
+
+function findFixturesForModel(fixturesDir: string, modelId: string): string[] {
+  return walkJsonFiles(fixturesDir).filter((f) => {
+    const base = basename(f, '.json')
+    return base === modelId || base === `${modelId}s` ||
+      base.startsWith(`${modelId}-`) || base.startsWith(`${modelId}_`) ||
+      f.includes(`/${modelId}/`) || f.includes(`/${modelId}s/`)
+  })
+}
+
+function pluralise(id: string): string {
+  if (id.endsWith('y') && !['ay', 'ey', 'oy', 'uy'].some((s) => id.endsWith(s))) return id.slice(0, -1) + 'ies'
+  return id + 's'
+}
+
+function validateMocks(all: ReturnType<typeof loadAll>, warnings: string[], projectRoot: string): void {
+  const mockConfig = all.platform.find((s) => s.content['type'] === 'mock-config')?.content
+  if (!mockConfig) return
+
+  const fixtureDirs = (mockConfig['fixtures'] as FixtureDirConfig[]) ?? []
+  const modelSchemas = all.models.filter((m) => !m.content['isEnum'] && Array.isArray(m.content['fields']))
+
+  for (const { content: model } of modelSchemas) {
+    const modelId      = model['id'] as string
+    const modelName    = model['name'] as string
+    const fields       = model['fields'] as Array<{ name: string; optional: boolean }>
+    const requiredFields = fields.filter((f) => !f.optional).map((f) => f.name)
+    const allFieldNames  = new Set(fields.map((f) => f.name))
+
+    for (const { platform, path: relPath } of fixtureDirs) {
+      const fixturesDir = join(projectRoot, relPath)
+      const matches = findFixturesForModel(fixturesDir, modelId)
+
+      if (matches.length === 0) {
+        warnings.push(`[mock:${platform}] no fixture found for model ${modelName} — run schema:generate to create stub`)
+        continue
+      }
+
+      for (const fixtureFile of matches) {
+        let data: unknown
+        try { data = JSON.parse(readFileSync(fixtureFile, 'utf8')) }
+        catch { warnings.push(`[mock] ${fixtureFile.replace(projectRoot + '/', '')}: invalid JSON`); continue }
+
+        const items = Array.isArray(data) ? data : [data]
+        const first = items[0] as Record<string, unknown>
+        if (!first || typeof first !== 'object') continue
+
+        for (const field of requiredFields) {
+          if (!(field in first))
+            warnings.push(`[mock] ${fixtureFile.replace(projectRoot + '/', '')}: missing required field '${field}' (${modelName})`)
+        }
+        for (const key of Object.keys(first)) {
+          if (!allFieldNames.has(key))
+            warnings.push(`[mock] ${fixtureFile.replace(projectRoot + '/', '')}: field '${key}' not in ${modelName} schema — drift?`)
+        }
+      }
+    }
+  }
+}
+
+function fixtureZeroValue(type: string, optional: boolean): unknown {
+  if (optional) return null
+  const map: Record<string, unknown> = {
+    UUID: '00000000-0000-0000-0000-000000000001',
+    String: 'Example', Int: 0, Double: 0.0, Float: 0.0, Bool: false,
+    Date: new Date().toISOString(),
+  }
+  return map[type] ?? null
+}
+
+function genFixtureStubs(all: ReturnType<typeof loadAll>, config: ResolvedConfig): void {
+  const mockConfig = all.platform.find((s) => s.content['type'] === 'mock-config')?.content
+  if (!mockConfig) return
+
+  const fixtureDirs = (mockConfig['fixtures'] as FixtureDirConfig[]) ?? []
+  const modelSchemas = all.models.filter((m) => !m.content['isEnum'] && Array.isArray(m.content['fields']))
+
+  for (const { content: model } of modelSchemas) {
+    const modelId = model['id'] as string
+    const fields  = model['fields'] as Array<{ name: string; type: string; optional: boolean; isArray?: boolean }>
+
+    for (const { path: relPath } of fixtureDirs) {
+      const fixturesDir = join(config.projectRoot, relPath)
+      if (findFixturesForModel(fixturesDir, modelId).length > 0) continue
+
+      const stub: Record<string, unknown> = {}
+      for (const f of fields) {
+        const val = fixtureZeroValue(f.type, f.optional)
+        stub[f.name] = f.isArray ? (val === null ? [] : [val]) : val
+      }
+
+      const stubDir  = join(fixturesDir, pluralise(modelId))
+      const stubFile = join(stubDir, `${modelId}.json`)
+      mkdirSync(stubDir, { recursive: true })
+      writeFileSync(stubFile, JSON.stringify([stub], null, 2) + '\n', 'utf8')
+      console.log(`  stub  ${stubFile.replace(config.projectRoot + '/', '')}`)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// schema:generate
+// ---------------------------------------------------------------------------
+
+async function cmdGenerate(): Promise<void> {
+  const config = loadConfig()
+  await generateAll(config)
+  genFixtureStubs(loadAll(config.schemasDir), config)
+  console.log('\n✓ Generation complete.')
+}
+
+// ---------------------------------------------------------------------------
+// mock:generate — generate transport-layer interception glue for iOS + Android
+// ---------------------------------------------------------------------------
+//
+// Reads sentinel/schemas/platform/mock-config.json for endpoint→fixture mappings.
+// Generates:
+//   iOS:     MockURLProtocol.swift  — URLProtocol subclass, intercepts URLSession at transport level
+//   Android: MockDispatcher.kt      — MockWebServer Dispatcher, maps paths → fixture assets
+//
+// Both files are written to the paths declared in sentinel.yaml under each platform's
+// output.mock field. Register in DEBUG builds only — app code is completely unaware.
+
+interface EndpointFixtureMapping {
+  method: string      // GET, POST, PATCH, DELETE
+  path: string        // e.g. /api/v1/users/:id
+  fixture: string     // relative path under sentinel/fixtures/
+  statusCode?: number // default 200
+}
+
+interface MockConfig {
+  fixtures: Array<{ platform: string; path: string }>
+  endpoints: EndpointFixtureMapping[]
+}
+
+function loadMockConfig(config: ResolvedConfig): MockConfig | null {
+  const all = loadAll(config.schemasDir)
+  const raw = all.platform.find((s) => s.content['type'] === 'mock-config')?.content
+  if (!raw) return null
+  return raw as unknown as MockConfig
+}
+
+// Normalise path pattern → regex that also matches with query strings
+// e.g. /api/v1/users/:id → ^/api/v1/users/[^/]+(\?.*)?$
+function pathToPattern(p: string): string {
+  return '^' + p.replace(/:[^/]+/g, '[^/]+') + '(\\?.*)?$'
+}
+
+function genSwiftMockURLProtocol(mappings: EndpointFixtureMapping[]): string {
+  const cases = mappings
+    .map((m) => {
+      const pattern = pathToPattern(m.path)
+      const method  = m.method.toUpperCase()
+      const status  = m.statusCode ?? 200
+      return `        // ${method} ${m.path}\n        Route(method: "${method}", pattern: #"${pattern}"#, fixture: "${m.fixture}", status: ${status}),`
+    })
+    .join('\n')
+
+  return `// GENERATED FILE — DO NOT EDIT
+// Run \`sentinel mock:generate\` to regenerate from sentinel/schemas/platform/mock-config.json
+//
+// Intercepts all URLSession requests at transport level in DEBUG builds.
+// Register once in your App entry point:
+//
+//   #if DEBUG
+//   URLProtocol.registerClass(MockURLProtocol.self)
+//   #endif
+//
+// Fixture JSON files are read from the app bundle (add sentinel/fixtures/ as a folder
+// reference in Xcode — do NOT add to Release target).
+
+#if DEBUG
+import Foundation
+
+final class MockURLProtocol: URLProtocol {
+
+    private struct Route {
+        let method: String
+        let pattern: String
+        let fixture: String
+        let status: Int
+    }
+
+    // ---------------------------------------------------------------------------
+    // Route table — generated from sentinel/schemas/platform/mock-config.json
+    // ---------------------------------------------------------------------------
+    private static let routes: [Route] = [
+${cases}
+    ]
+
+    // ---------------------------------------------------------------------------
+    // URLProtocol overrides
+    // ---------------------------------------------------------------------------
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        guard let url = request.url, let method = request.httpMethod else { return false }
+        let path = url.path + (url.query.map { "?\\($0)" } ?? "")
+        return routes.contains { r in
+            r.method == method.uppercased() &&
+            (try? NSRegularExpression(pattern: r.pattern))
+                .map { $0.firstMatch(in: path, range: NSRange(path.startIndex..., in: path)) != nil } ?? false
+        }
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url, let method = request.httpMethod else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL)); return
+        }
+        let path = url.path + (url.query.map { "?\\($0)" } ?? "")
+        guard let route = Self.routes.first(where: { r in
+            r.method == method.uppercased() &&
+            (try? NSRegularExpression(pattern: r.pattern))
+                .map { $0.firstMatch(in: path, range: NSRange(path.startIndex..., in: path)) != nil } ?? false
+        }) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist)); return
+        }
+
+        // Load fixture from bundle — sentinel/fixtures/ added as folder reference in Xcode.
+        // The folder reference appears as "fixtures" at the bundle root, so subdirectory
+        // must be prefixed with "fixtures/" (e.g. "fixtures/auth" not just "auth").
+        let parts = route.fixture.split(separator: "/")
+        let name  = parts.last.map(String.init)?.replacingOccurrences(of: ".json", with: "") ?? ""
+        let subdir = parts.count > 1
+            ? "fixtures/" + parts.dropLast().joined(separator: "/")
+            : "fixtures"
+        guard
+            let bundleURL = Bundle.main.url(forResource: name, withExtension: "json", subdirectory: subdir),
+            let data = try? Data(contentsOf: bundleURL)
+        else {
+            print("[MockURLProtocol] fixture not found: \\(route.fixture)")
+            client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
+            return
+        }
+
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: route.status,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+
+        // Simulate a small network delay so loading states are visible in UI
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) {
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        }
+    }
+
+    override func stopLoading() {}
+}
+#endif
+`
+}
+
+function genKotlinMockDispatcher(mappings: EndpointFixtureMapping[], outputPath: string): string {
+  const pkg   = deriveKotlinPackage(outputPath)
+  const cases = mappings
+    .map((m) => {
+      const pattern = pathToPattern(m.path)
+      const method  = m.method.toUpperCase()
+      const status  = m.statusCode ?? 200
+      return `        // ${method} ${m.path}\n        Route("${method}", Regex("${pattern}"), "${m.fixture}", ${status}),`
+    })
+    .join('\n')
+
+  return `// GENERATED FILE — DO NOT EDIT
+// Run \`sentinel mock:generate\` to regenerate from sentinel/schemas/platform/mock-config.json
+//
+// MockWebServer dispatcher for Android debug builds.
+// Wire up in your debug Hilt module (src/debug/):
+//
+//   @Module @InstallIn(SingletonComponent::class)
+//   object DebugNetworkModule {
+//       @Provides @Singleton
+//       fun provideMockWebServer(@ApplicationContext context: Context): MockWebServer =
+//           MockWebServer().apply { dispatcher = MockDispatcher(context.assets); start() }
+//       @Provides @Singleton @Named("apiBaseUrl")
+//       fun provideBaseUrl(server: MockWebServer): String = server.url("/").toString()
+//   }
+//
+// Fixture JSON files live in sentinel/fixtures/ — symlink or copy to
+// app/src/debug/assets/fixtures/ (excluded from release builds by source set).
+
+package ${pkg}
+
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.RecordedRequest
+import android.content.res.AssetManager
+
+class MockDispatcher(private val assets: AssetManager) : Dispatcher() {
+
+    private data class Route(
+        val method: String,
+        val pattern: Regex,
+        val fixture: String,
+        val status: Int,
+    )
+
+    // ---------------------------------------------------------------------------
+    // Route table — generated from sentinel/schemas/platform/mock-config.json
+    // ---------------------------------------------------------------------------
+    private val routes = listOf(
+${cases}
+    )
+
+    override fun dispatch(request: RecordedRequest): MockResponse {
+        val method = request.method?.uppercase() ?: "GET"
+        val path   = request.path ?: "/"
+
+        val route = routes.firstOrNull { r ->
+            r.method == method && r.pattern.containsMatchIn(path)
+        }
+
+        if (route == null) {
+            return MockResponse().setResponseCode(404).setBody("""{"error":"No mock for $method $path"}""")
+        }
+
+        return try {
+            val json = assets.open("fixtures/\${route.fixture}").bufferedReader().readText()
+            MockResponse()
+                .setResponseCode(route.status)
+                .setHeader("Content-Type", "application/json")
+                .setBody(json)
+                .setBodyDelay(300, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (e: Exception) {
+            MockResponse().setResponseCode(500).setBody("""{"error":"Fixture not found: \${route.fixture}"}""")
+        }
+    }
+}
+`
+}
+
+async function cmdMockGenerate(): Promise<void> {
+  console.log('Generating mock transport glue...\n')
+
+  const config     = loadConfig()
+  const mockConfig = loadMockConfig(config)
+  if (!mockConfig) {
+    console.error('  ✗ No mock-config schema found. Add sentinel/schemas/platform/mock-config.json')
+    process.exit(1)
+  }
+
+  const mappings = mockConfig.endpoints ?? []
+  if (mappings.length === 0) {
+    console.warn('  ⚠ No endpoint→fixture mappings in mock-config.json — add an "endpoints" array.')
+    return
+  }
+
+  let generated = 0
+  const { apple, google } = config.platforms
+
+  if (apple?.output.mock) {
+    writeFile(join(config.projectRoot, apple.output.mock), genSwiftMockURLProtocol(mappings), config.projectRoot)
+    console.log(`  swift  ${apple.output.mock}`)
+    generated++
+  }
+
+  if (google?.output.mock) {
+    writeFile(join(config.projectRoot, google.output.mock), genKotlinMockDispatcher(mappings, google.output.mock), config.projectRoot)
+    console.log(`  kotlin ${google.output.mock}`)
+    generated++
+  }
+
+  if (generated === 0) {
+    console.warn('  ⚠ No platforms with output.mock defined in sentinel.yaml — nothing generated.')
+    console.warn('  Add output.mock: path/to/MockURLProtocol.swift under the apple platform.')
+  } else {
+    console.log(`\n✓ Generated ${generated} mock transport file(s).`)
+    console.log('  Register in your DEBUG entry point — see file header comments for instructions.')
+  }
+}
+
+function cmdMockValidate(): void {
+  console.log('Validating fixtures against endpoint response schemas...\n')
+
+  const config     = loadConfig()
+  const mockConfig = loadMockConfig(config)
+  if (!mockConfig) {
+    console.error('  ✗ No mock-config schema found.')
+    process.exit(1)
+  }
+
+  const all      = loadAll(config.schemasDir)
+  const errors:   string[] = []
+  const warnings: string[] = []
+  const mappings = mockConfig.endpoints ?? []
+
+  // Derive the fixtures base directory from mock-config (first entry), falling back
+  // to sentinelDir/fixtures — this correctly respects the 'location' config field.
+  const fixtureRelPath = mockConfig.fixtures[0]?.path
+  const fixturesBase   = fixtureRelPath
+    ? join(config.projectRoot, fixtureRelPath)
+    : join(config.sentinelDir, 'fixtures')
+
+  for (const mapping of mappings) {
+    const fixturePath = join(fixturesBase, mapping.fixture)
+    if (!existsSync(fixturePath)) {
+      errors.push(`  ✗ Fixture not found: ${mapping.fixture}`)
+      continue
+    }
+
+    let data: unknown
+    try {
+      data = JSON.parse(readFileSync(fixturePath, 'utf8'))
+    } catch {
+      errors.push(`  ✗ Invalid JSON: ${mapping.fixture}`)
+      continue
+    }
+
+    // Find the endpoint schema for this path
+    const endpointSchemas = all.features.filter((s) => s.content['type'] === 'endpoints')
+    let matchedEndpoint: Record<string, unknown> | null = null
+
+    for (const { content } of endpointSchemas) {
+      const eps = (content['endpoints'] as Array<Record<string, unknown>>) ?? []
+      const ep  = eps.find((e) => {
+        const epPath = `${content['base'] ?? '/api/v1'}${e['path']}`
+        return e['method'] === mapping.method && epPath === mapping.path
+      })
+      if (ep) { matchedEndpoint = ep; break }
+    }
+
+    if (!matchedEndpoint) {
+      warnings.push(`  ⚠ No endpoint schema for ${mapping.method} ${mapping.path} — add to features/*.json`)
+      continue
+    }
+
+    // Validate top-level response fields if declared inline
+    const response = matchedEndpoint['response'] as Record<string, unknown> | undefined
+    if (response?.fields) {
+      const fields   = response.fields as Array<{ name: string; optional: boolean }>
+      const required = fields.filter((f) => !f.optional).map((f) => f.name)
+      const root     = typeof data === 'object' && data !== null ? data as Record<string, unknown> : {}
+      for (const field of required) {
+        if (!(field in root))
+          errors.push(`  ✗ ${mapping.fixture}: missing required field '${field}' (${mapping.method} ${mapping.path})`)
+      }
+    }
+
+    console.log(`  ✓ ${mapping.method} ${mapping.path} → ${mapping.fixture}`)
+  }
+
+  if (warnings.length) { console.log(''); warnings.forEach((w) => console.log(w)) }
+  if (errors.length) {
+    console.log('')
+    errors.forEach((e) => console.error(e))
+    console.log(`\n✗ ${errors.length} fixture validation error(s).`)
+    process.exit(1)
+  } else {
+    console.log(`\n✓ All ${mappings.length} fixture(s) valid.`)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// contracts
+// ---------------------------------------------------------------------------
+
+function cmdContracts(): void {
+  console.log('Validating API contracts...')
+  cmdValidate()
+
+  const config = loadConfig()
+  const all    = loadAll(config.schemasDir)
+  const endpointSchemas = all.features.filter((s) => s.content['type'] === 'endpoints')
+
+  if (endpointSchemas.length === 0) {
+    console.log('  No endpoint schemas found. Add type:"endpoints" schemas to sentinel/schemas/features/ to get contract validation.')
+  } else {
+    console.log(`  Found ${endpointSchemas.length} endpoint schema(s):`)
+    for (const { content } of endpointSchemas) {
+      const eps = content['endpoints'] as Array<Record<string, unknown>>
+      console.log(`    ${content['id']} — ${eps.length} endpoint(s)`)
+    }
+    console.log('  ✓ All endpoint model references valid.')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// catalog
+// ---------------------------------------------------------------------------
+
+async function cmdCatalogCapture(): Promise<void> {
+  const { runCapture }     = await import('../catalog/capture.js')
+  const { generateIndex }  = await import('../catalog/html.js')
+  const config = loadConfig()
+  if (!config.catalog) {
+    console.error('No catalog: section found in sentinel.yaml. Add one to enable screen cataloguing.')
+    process.exit(1)
+  }
+
+  const args = process.argv.slice(3)
+  const screenFilter  = args.find((_, i) => args[i - 1] === '--screen')
+  const osFilter      = args.find((_, i) => args[i - 1] === '--os') as any
+  const deviceFilter  = args.find((_, i) => args[i - 1] === '--device') as any
+  const variantFilter = args.find((_, i) => args[i - 1] === '--variant') as any
+  const skipExisting  = args.includes('--skip-existing')
+
+  console.log(chalk.bold('\n  Catalog capture\n'))
+  const results = await runCapture(config.catalog, config.projectRoot, {
+    screenFilter, osFilter, deviceFilter, variantFilter, skipExisting,
+  })
+
+  const ok      = results.filter((r) => r.success && !r.skipped).length
+  const skipped = results.filter((r) => r.skipped).length
+  const failed  = results.filter((r) => !r.success).length
+  console.log(`\n  ${chalk.green(`${ok} captured`)}  ${chalk.dim(`${skipped} skipped`)}  ${failed > 0 ? chalk.red(`${failed} failed`) : ''}`)
+
+  generateIndex(config.catalog, config.projectRoot)
+  console.log(chalk.dim(`  index.html updated — open ${config.catalog.output}index.html to review`))
+}
+
+async function cmdCatalogValidate(): Promise<void> {
+  const { validateCatalog } = await import('../catalog/validate.js')
+  const config = loadConfig()
+  if (!config.catalog) {
+    console.error('No catalog: section in sentinel.yaml')
+    process.exit(1)
+  }
+
+  const result = validateCatalog(config.catalog, config.projectRoot)
+  console.log(`\n  Catalog: ${result.present}/${result.expected} screenshots present`)
+
+  if (result.missing.length > 0) {
+    console.log(chalk.red(`\n  Missing (${result.missing.length}):`))
+    for (const shot of result.missing) {
+      console.log(`    ✗  ${shot.filename}`)
+    }
+    console.log(`\n  Run: sentinel catalog:capture`)
+    process.exit(1)
+  } else {
+    console.log(chalk.green('  ✓  All catalog screenshots present'))
+  }
+}
+
+async function cmdCatalogIndex(): Promise<void> {
+  const { generateIndex } = await import('../catalog/html.js')
+  const config = loadConfig()
+  if (!config.catalog) {
+    console.error('No catalog: section in sentinel.yaml')
+    process.exit(1)
+  }
+  generateIndex(config.catalog, config.projectRoot)
+  console.log(chalk.green(`  ✓  ${config.catalog.output}index.html generated`))
+}
+
+async function cmdCatalogUpload(): Promise<void> {
+  const { runUpload, validateUploadOptions } = await import('../catalog/upload.js')
+  const { generateIndex } = await import('../catalog/html.js')
+  const config = loadConfig()
+  if (!config.catalog) {
+    console.error('No catalog: section in sentinel.yaml')
+    process.exit(1)
+  }
+
+  // Parse flags + trailing file path
+  // Strategy: collect all flag values, then remaining non-flag args are positional (the file)
+  const args = process.argv.slice(3)
+  const flag = (name: string) => args.find((_, i) => args[i - 1] === `--${name}`)
+  const consumed = new Set<number>()
+  args.forEach((a, i) => {
+    if (a.startsWith('--')) { consumed.add(i); consumed.add(i + 1) }
+  })
+  const positionals = args.filter((_, i) => !consumed.has(i))
+  const file = positionals.at(-1)
+
+  const opts = {
+    screen:  flag('screen'),
+    os:      flag('os') as any,
+    device:  flag('device') as any,
+    variant: flag('variant') as any,
+    scroll:  flag('scroll') ? Number(flag('scroll')) : undefined,
+    file:    file ?? '',
+  }
+
+  const errors = validateUploadOptions(opts, config.catalog)
+  if (errors.length > 0) {
+    console.error(chalk.red('\n  Upload failed:\n'))
+    errors.forEach((e) => console.error(`    ✗  ${e}`))
+    console.error(chalk.dim('\n  Usage: sentinel catalog:upload --screen <slug> --os <ios18|ios26|android|watchos|tvos> --device <iphone|ipad|phone|tablet|watch|tv> --variant <light|dark|glossy-light|glossy-dark> [--scroll <N>] <file>\n'))
+    process.exit(1)
+  }
+
+  console.log(chalk.bold('\n  Catalog upload\n'))
+  const ok = runUpload(config.catalog, config.projectRoot, opts as any)
+  if (!ok) process.exit(1)
+
+  generateIndex(config.catalog, config.projectRoot)
+  console.log(chalk.dim(`  index.html updated`))
+}
+
+// ---------------------------------------------------------------------------
+// registry:scan
+// ---------------------------------------------------------------------------
+
+function cmdRegistryScan(): void {
+  const config = loadConfig()
+  if (!config.catalog) {
+    console.error('No catalog: section in sentinel.yaml — add one to enable the screen registry.')
+    process.exit(1)
+  }
+
+  const args       = process.argv.slice(3)
+  const fileArg    = args.find((_, i) => args[i - 1] === '--file')
+  const jsonMode   = args.includes('--json')
+  const warnMode   = args.includes('--warn') // exit 0 even if unregistered (for hooks)
+
+  const result = scanRegistry(config.catalog, config.projectRoot, fileArg)
+
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+    if (result.unregistered.length > 0 && !warnMode) process.exit(1)
+    return
+  }
+
+  if (fileArg) {
+    // Single-file mode: used by the sentinel-registry hook
+    if (result.unregistered.length === 0) {
+      // File is registered (or not a screen file) — silent
+      return
+    }
+    const { suggestedSlug } = result.unregistered[0]
+    console.error(`\nScreen not registered in sentinel.yaml: ${fileArg}`)
+    console.error(`\nAdd this entry to the screens: list in sentinel.yaml:\n`)
+    console.error(`  - slug: ${suggestedSlug}`)
+    console.error(`    name: [Screen Name]`)
+    console.error(`    # flow: sentinel/flows/catalog/${suggestedSlug}.yaml  (add when Maestro flow is ready)`)
+    console.error(`\nThen run: npx sentinel catalog:capture --screen ${suggestedSlug}`)
+    if (!warnMode) process.exit(1)
+    return
+  }
+
+  // Full scan mode
+  const { registeredCount, foundCount, unregistered } = result
+  console.log(chalk.bold('\n  Registry scan\n'))
+  console.log(`  ${foundCount} screen file(s) found   ${registeredCount} registered in sentinel.yaml`)
+
+  if (unregistered.length === 0) {
+    console.log(chalk.green('\n  ✓  All screens registered'))
+    return
+  }
+
+  console.log(chalk.yellow(`\n  Unregistered (${unregistered.length}):\n`))
+  for (const { file, suggestedSlug } of unregistered) {
+    console.log(`  ✗  ${file}`)
+    console.log(chalk.dim(`     → suggested slug: ${suggestedSlug}`))
+  }
+
+  console.log(chalk.dim('\n  Add each unregistered screen to sentinel.yaml:'))
+  console.log(chalk.dim('  screens:'))
+  for (const { suggestedSlug } of unregistered) {
+    console.log(chalk.dim(`    - slug: ${suggestedSlug}`))
+    console.log(chalk.dim(`      name: [Screen Name]`))
+  }
+
+  if (!warnMode) process.exit(1)
+}
+
+// ---------------------------------------------------------------------------
+// CLI entry point
+// ---------------------------------------------------------------------------
+
+const cmd = process.argv[2];
+
+(async () => {
+  switch (cmd) {
+    case 'schema:validate':  cmdValidate(); break
+    case 'schema:generate':  await cmdGenerate(); break
+    case 'contracts':        cmdContracts(); break
+    case 'mock:generate':    await cmdMockGenerate(); break
+    case 'mock:validate':    cmdMockValidate(); break
+    case 'catalog:capture':  await cmdCatalogCapture(); break
+    case 'catalog:validate': await cmdCatalogValidate(); break
+    case 'catalog:index':    await cmdCatalogIndex(); break
+    case 'catalog:upload':   await cmdCatalogUpload(); break
+    case 'registry:scan':    cmdRegistryScan(); break
+    case 'all':              cmdValidate(); await cmdGenerate(); await cmdMockGenerate(); break
+    default:
+      console.error(`Unknown command: ${cmd ?? '(none)'}`)
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | mock:generate | mock:validate | catalog:capture | catalog:validate | catalog:index | catalog:upload | catalog:capture | registry:scan [--file <path>] [--json] [--warn] | all')
+      process.exit(1)
+  }
+})().catch((e: unknown) => {
+  console.error(e instanceof Error ? e.message : String(e))
+  process.exit(1)
+})
