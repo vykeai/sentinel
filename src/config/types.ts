@@ -322,6 +322,7 @@ export interface ValidationResult {
   issues: ValidationIssue[]
   durationMs: number
   checkedCount: number
+  filesScanned?: number
 }
 
 export interface SentinelReport {

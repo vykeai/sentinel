@@ -16,6 +16,7 @@ export async function checkQuality(
   const start = performance.now()
   const issues: ValidationIssue[] = []
   let checked = 0
+  let filesScanned = 0
 
   // ─── Tests ────────────────────────────────────────────────────────────────
   if (config.tests) {
@@ -162,6 +163,7 @@ export async function checkQuality(
       })
       files.push(...matched)
     }
+    filesScanned = files.length
 
     for (const banned of config['banned-patterns']) {
       checked++
@@ -264,5 +266,6 @@ export async function checkQuality(
     issues,
     durationMs: Math.round(performance.now() - start),
     checkedCount: checked,
+    filesScanned,
   }
 }

@@ -955,16 +955,26 @@ function cmdRegistryScan(): void {
 
 async function cmdQualityCheck(): Promise<boolean> {
   const config = loadConfig()
+  const jsonMode = process.argv.includes('--json')
 
   if (!config.quality) {
-    console.error(chalk.red('  ✗ No quality block in sentinel.yaml'))
-    console.error(chalk.dim('  Add a quality: section to enable code quality checks'))
+    if (jsonMode) {
+      process.stdout.write(JSON.stringify({ error: 'No quality block in sentinel.yaml' }, null, 2) + '\n')
+    } else {
+      console.error(chalk.red('  ✗ No quality block in sentinel.yaml'))
+      console.error(chalk.dim('  Add a quality: section to enable code quality checks'))
+    }
     process.exit(1)
   }
 
-  console.log(chalk.bold.white('\n  Sentinel — Quality Check\n'))
-
   const result = await checkQuality(config.projectRoot, config.quality)
+
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+    return result.passed
+  }
+
+  console.log(chalk.bold.white('\n  Sentinel — Quality Check\n'))
 
   if (result.issues.length === 0) {
     console.log(chalk.green('  ✓') + ` All ${result.checkedCount} quality checks passed` + chalk.dim(` (${result.durationMs}ms)`))
@@ -988,7 +998,11 @@ async function cmdQualityCheck(): Promise<boolean> {
     }
   }
 
-  console.log()
+  const errorCount = result.issues.filter(i => i.severity === 'error').length
+  const warnCount = result.issues.filter(i => i.severity === 'warning').length
+  const scanned = result.filesScanned ?? 0
+  console.log(chalk.dim(`\n  ${scanned} files scanned, ${result.checkedCount} checks, ${errorCount} errors, ${warnCount} warnings\n`))
+
   return result.passed
 }
 
