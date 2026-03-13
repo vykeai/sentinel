@@ -55,6 +55,99 @@ export async function checkQuality(
     }
   }
 
+  // ─── Lint ────────────────────────────────────────────────────────────────
+  if (config.lint) {
+    checked++
+    try {
+      execSync(config.lint, { cwd: projectRoot, stdio: 'pipe', timeout: 60_000 })
+    } catch (e: unknown) {
+      const stderr = e instanceof Error && 'stderr' in e
+        ? String((e as { stderr: Buffer }).stderr).slice(0, 500)
+        : 'unknown error'
+      issues.push({
+        severity: 'error',
+        layer: 'quality',
+        rule: 'lint-fail',
+        message: `Lint command failed: ${config.lint}`,
+        fix: stderr,
+      })
+    }
+  }
+
+  // ─── Build ───────────────────────────────────────────────────────────────
+  if (config.build) {
+    checked++
+    try {
+      execSync(config.build, { cwd: projectRoot, stdio: 'pipe', timeout: 180_000 })
+    } catch (e: unknown) {
+      const stderr = e instanceof Error && 'stderr' in e
+        ? String((e as { stderr: Buffer }).stderr).slice(0, 500)
+        : 'unknown error'
+      issues.push({
+        severity: 'error',
+        layer: 'quality',
+        rule: 'build-fail',
+        message: `Build command failed: ${config.build}`,
+        fix: stderr,
+      })
+    }
+  }
+
+  // ─── Gitignore check ────────────────────────────────────────────────────
+  if (config['gitignore-check']) {
+    checked++
+    try {
+      // Check for tracked files that should not be tracked
+      const tracked = execSync('git ls-files --cached', { cwd: projectRoot, stdio: 'pipe' })
+        .toString()
+        .split('\n')
+        .filter(Boolean)
+
+      const badPrefixes = ['dist/', 'node_modules/', '.env']
+      const trackedBad = tracked.filter(f =>
+        badPrefixes.some(p => f === p || f.startsWith(p === '.env' ? '.env' : p))
+      )
+
+      if (trackedBad.length > 0) {
+        issues.push({
+          severity: 'error',
+          layer: 'quality',
+          rule: 'gitignore-tracked',
+          message: `${trackedBad.length} file(s) tracked that should be gitignored`,
+          fix: trackedBad.slice(0, 10).join(', '),
+        })
+      }
+
+      // Check .gitignore for missing essential patterns
+      const gitignorePath = path.join(projectRoot, '.gitignore')
+      const requiredPatterns = ['node_modules', 'dist', '.env']
+      let gitignoreContent = ''
+      try {
+        gitignoreContent = readFileSync(gitignorePath, 'utf-8')
+      } catch {
+        // no .gitignore at all
+      }
+
+      const missingPatterns = requiredPatterns.filter(p => !gitignoreContent.includes(p))
+      if (missingPatterns.length > 0) {
+        issues.push({
+          severity: 'warning',
+          layer: 'quality',
+          rule: 'gitignore-missing',
+          message: `.gitignore missing patterns: ${missingPatterns.join(', ')}`,
+          fix: `Add these patterns to .gitignore`,
+        })
+      }
+    } catch {
+      issues.push({
+        severity: 'warning',
+        layer: 'quality',
+        rule: 'gitignore-tracked',
+        message: `Could not check gitignore — not a git repo`,
+      })
+    }
+  }
+
   // ─── Banned patterns ──────────────────────────────────────────────────────
   if (config['banned-patterns'] && config['banned-patterns'].length > 0) {
     const include = config.include ?? ['src/**/*.{ts,tsx,js,jsx}']

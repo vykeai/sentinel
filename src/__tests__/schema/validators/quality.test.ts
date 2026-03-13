@@ -162,6 +162,84 @@ describe('checkQuality', () => {
     fs.rmSync(bareDir, { recursive: true, force: true })
   })
 
+  // ─── Lint ────────────────────────────────────────────────────────────────────
+
+  it('lint-pass: succeeds when lint command exits 0', async () => {
+    dir = makeTempDir()
+    const config: QualityConfig = { lint: 'echo "lint ok"' }
+    const result = await checkQuality(dir, config)
+    expect(result.passed).toBe(true)
+    expect(result.checkedCount).toBe(1)
+  })
+
+  it('lint-fail: reports error when lint command exits non-zero', async () => {
+    dir = makeTempDir()
+    const config: QualityConfig = { lint: 'exit 1' }
+    const result = await checkQuality(dir, config)
+    expect(result.passed).toBe(false)
+    const errors = result.issues.filter(i => i.severity === 'error')
+    expect(errors).toHaveLength(1)
+    expect(errors[0].rule).toBe('lint-fail')
+  })
+
+  // ─── Build ──────────────────────────────────────────────────────────────────
+
+  it('build-pass: succeeds when build command exits 0', async () => {
+    dir = makeTempDir()
+    const config: QualityConfig = { build: 'echo "build ok"' }
+    const result = await checkQuality(dir, config)
+    expect(result.passed).toBe(true)
+    expect(result.checkedCount).toBe(1)
+  })
+
+  it('build-fail: reports error when build command exits non-zero', async () => {
+    dir = makeTempDir()
+    const config: QualityConfig = { build: 'exit 1' }
+    const result = await checkQuality(dir, config)
+    expect(result.passed).toBe(false)
+    const errors = result.issues.filter(i => i.severity === 'error')
+    expect(errors).toHaveLength(1)
+    expect(errors[0].rule).toBe('build-fail')
+  })
+
+  // ─── Gitignore check ───────────────────────────────────────────────────────
+
+  it('gitignore-tracked: reports error when dist/ is tracked', async () => {
+    dir = makeTempDir()
+    execSync('git init', { cwd: dir, stdio: 'pipe' })
+    execSync('git config user.email "test@test.com"', { cwd: dir, stdio: 'pipe' })
+    execSync('git config user.name "Test"', { cwd: dir, stdio: 'pipe' })
+    const distDir = path.join(dir, 'dist')
+    fs.mkdirSync(distDir, { recursive: true })
+    fs.writeFileSync(path.join(distDir, 'bundle.js'), 'var x=1')
+    execSync('git add . && git commit -m "feat: init"', { cwd: dir, stdio: 'pipe' })
+
+    const config: QualityConfig = { 'gitignore-check': true }
+    const result = await checkQuality(dir, config)
+    expect(result.passed).toBe(false)
+    const errors = result.issues.filter(i => i.rule === 'gitignore-tracked')
+    expect(errors).toHaveLength(1)
+  })
+
+  it('gitignore-missing: warns when .gitignore lacks required patterns', async () => {
+    dir = makeTempDir()
+    execSync('git init', { cwd: dir, stdio: 'pipe' })
+    execSync('git config user.email "test@test.com"', { cwd: dir, stdio: 'pipe' })
+    execSync('git config user.name "Test"', { cwd: dir, stdio: 'pipe' })
+    // Create .gitignore without required patterns
+    fs.writeFileSync(path.join(dir, '.gitignore'), '*.log\n')
+    fs.writeFileSync(path.join(dir, 'f.txt'), 'hi')
+    execSync('git add . && git commit -m "feat: init"', { cwd: dir, stdio: 'pipe' })
+
+    const config: QualityConfig = { 'gitignore-check': true }
+    const result = await checkQuality(dir, config)
+    // Should still pass (warnings don't fail)
+    expect(result.passed).toBe(true)
+    const warnings = result.issues.filter(i => i.rule === 'gitignore-missing')
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].message).toContain('node_modules')
+  })
+
   // ─── Empty config ───────────────────────────────────────────────────────────
 
   it('empty config returns passed: true with checkedCount: 0', async () => {

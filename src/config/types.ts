@@ -120,6 +120,9 @@ export interface QualityBannedPattern {
 export interface QualityConfig {
   tests?: string
   typecheck?: string
+  lint?: string
+  build?: string
+  'gitignore-check'?: boolean
   'banned-patterns'?: QualityBannedPattern[]
   'commit-format'?: string
   'require-pushed'?: boolean
