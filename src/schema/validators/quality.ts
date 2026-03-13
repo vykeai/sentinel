@@ -4,8 +4,8 @@
  * Reads the `quality` block from sentinel.yaml.
  */
 import { execSync } from 'child_process'
-import { readFileSync, existsSync } from 'fs'
-import { join } from 'path'
+import { readFileSync } from 'fs'
+import path from 'path'
 import { glob } from 'glob'
 import type { ValidationResult, ValidationIssue, QualityConfig } from '../../config/types.js'
 
@@ -72,21 +72,43 @@ export async function checkQuality(
 
     for (const banned of config['banned-patterns']) {
       checked++
+      // Group hits by file: { relativePath: lineNumbers[] }
+      const hits: Map<string, number[]> = new Map()
+
       for (const file of files) {
         const content = readFileSync(file, 'utf-8')
         const lines = content.split('\n')
+        const lineNums: number[] = []
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].includes(banned.pattern)) {
-            issues.push({
-              severity: banned.severity,
-              layer: 'quality',
-              rule: 'banned-pattern',
-              file,
-              message: banned.message ?? `Banned pattern "${banned.pattern}" found at line ${i + 1}`,
-              fix: `Remove or replace "${banned.pattern}"`,
-            })
+            lineNums.push(i + 1)
           }
         }
+        if (lineNums.length > 0) {
+          const rel = path.relative(projectRoot, file)
+          hits.set(rel, lineNums)
+        }
+      }
+
+      if (hits.size > 0) {
+        let totalHits = 0
+        const fileDetails: string[] = []
+        for (const [file, lineNums] of hits) {
+          totalHits += lineNums.length
+          if (lineNums.length <= 3) {
+            fileDetails.push(`${file}:${lineNums.join(',')}`)
+          } else {
+            fileDetails.push(`${file} (${lineNums.length} hits)`)
+          }
+        }
+
+        issues.push({
+          severity: banned.severity,
+          layer: 'quality',
+          rule: 'banned-pattern',
+          message: `${banned.message ?? `"${banned.pattern}"`} — ${totalHits} occurrence${totalHits !== 1 ? 's' : ''} in ${hits.size} file${hits.size !== 1 ? 's' : ''}`,
+          fix: fileDetails.join(', '),
+        })
       }
     }
   }
