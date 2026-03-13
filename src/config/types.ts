@@ -109,6 +109,24 @@ export interface CatalogConfig {
   screens: CatalogScreenDef[]
 }
 
+// ─── Quality Config ──────────────────────────────────────────────────────────
+
+export interface QualityBannedPattern {
+  pattern: string
+  severity: 'error' | 'warning'
+  message?: string
+}
+
+export interface QualityConfig {
+  tests?: string
+  typecheck?: string
+  'banned-patterns'?: QualityBannedPattern[]
+  'commit-format'?: string
+  'require-pushed'?: boolean
+  include?: string[]
+  exclude?: string[]
+}
+
 // ─── Root Config ──────────────────────────────────────────────────────────────
 
 export interface GitHubConfig {
@@ -141,6 +159,7 @@ export interface SentinelConfig {
   notifications?: NotificationsConfig
   github?: GitHubConfig
   invariants?: InvariantCheck[]
+  quality?: QualityConfig
 }
 
 // ─── Resolved Config (post-load, all paths absolute) ─────────────────────────

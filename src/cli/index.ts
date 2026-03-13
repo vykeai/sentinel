@@ -20,6 +20,7 @@ import chalk from 'chalk'
 import { loadConfig } from '../config/loader.js'
 import { generateAll } from '../schema/index.js'
 import { checkStaleness } from '../schema/validators/staleness.js'
+import { checkQuality } from '../schema/validators/quality.js'
 import { scanRegistry } from '../catalog/registry.js'
 import type { ResolvedConfig } from '../config/types.js'
 
@@ -53,6 +54,34 @@ function loadAll(schemasDir: string) {
 }
 
 // ---------------------------------------------------------------------------
+// --write-status support
+// ---------------------------------------------------------------------------
+
+interface StatusReport {
+  lastRun: string
+  schemas: Array<{ name: string; valid: boolean; errors: string[] }>
+  contracts: Array<{ name: string; passing: boolean }>
+  mocks: Array<{ endpoint: string; coverage: boolean }>
+}
+
+function parseWriteStatus(): string | null {
+  const idx = process.argv.indexOf('--write-status')
+  if (idx === -1 || idx + 1 >= process.argv.length) return null
+  return process.argv[idx + 1]
+}
+
+function writeStatusFile(path: string, report: StatusReport): void {
+  const dir = dirname(path)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(path, JSON.stringify(report, null, 2) + '\n', 'utf8')
+  console.log(`  status written to ${path}`)
+}
+
+function emptyReport(): StatusReport {
+  return { lastRun: new Date().toISOString(), schemas: [], contracts: [], mocks: [] }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -77,7 +106,8 @@ function deriveKotlinPackage(outputPath: string): string {
 // schema:validate
 // ---------------------------------------------------------------------------
 
-function cmdValidate(): void {
+function cmdValidate(): StatusReport {
+  const report = emptyReport()
   const config = loadConfig()
   const all = loadAll(config.schemasDir)
   const errors: string[] = []
@@ -184,8 +214,12 @@ function cmdValidate(): void {
     }
   }
 
-  for (const { filename, content } of [...all.design, ...all.features, ...all.models, ...all.platform]) {
+  const allSchemas = [...all.design, ...all.features, ...all.models, ...all.platform]
+  for (const { filename, content } of allSchemas) {
+    const errorsBefore = errors.length
     check(filename, content)
+    const schemaErrors = errors.slice(errorsBefore)
+    report.schemas.push({ name: filename, valid: schemaErrors.length === 0, errors: schemaErrors })
   }
 
   // ── Unused string keys ─────────────────────────────────────────────────────
@@ -221,10 +255,12 @@ function cmdValidate(): void {
     console.error(`\n✗ Schema validation failed:\n`)
     errors.forEach((e) => console.error(`  • ${e}`))
     console.error(`\n${errors.length} error(s) in ${total} schemas.\n`)
-    process.exit(1)
+    // Don't exit yet — let caller write status first
   } else {
     console.log(`\n✓ All ${total} schemas valid.`)
   }
+
+  return report
 }
 
 // ---------------------------------------------------------------------------
@@ -619,7 +655,8 @@ async function cmdMockGenerate(): Promise<void> {
   }
 }
 
-function cmdMockValidate(): void {
+function cmdMockValidate(): StatusReport {
+  const report = emptyReport()
   console.log('Validating fixtures against endpoint response schemas...\n')
 
   const config     = loadConfig()
@@ -645,6 +682,7 @@ function cmdMockValidate(): void {
     const fixturePath = join(fixturesBase, mapping.fixture)
     if (!existsSync(fixturePath)) {
       errors.push(`  ✗ Fixture not found: ${mapping.fixture}`)
+      report.mocks.push({ endpoint: `${mapping.method} ${mapping.path}`, coverage: false })
       continue
     }
 
@@ -653,6 +691,7 @@ function cmdMockValidate(): void {
       data = JSON.parse(readFileSync(fixturePath, 'utf8'))
     } catch {
       errors.push(`  ✗ Invalid JSON: ${mapping.fixture}`)
+      report.mocks.push({ endpoint: `${mapping.method} ${mapping.path}`, coverage: false })
       continue
     }
 
@@ -686,6 +725,7 @@ function cmdMockValidate(): void {
       }
     }
 
+    report.mocks.push({ endpoint: `${mapping.method} ${mapping.path}`, coverage: true })
     console.log(`  ✓ ${mapping.method} ${mapping.path} → ${mapping.fixture}`)
   }
 
@@ -694,19 +734,20 @@ function cmdMockValidate(): void {
     console.log('')
     errors.forEach((e) => console.error(e))
     console.log(`\n✗ ${errors.length} fixture validation error(s).`)
-    process.exit(1)
   } else {
     console.log(`\n✓ All ${mappings.length} fixture(s) valid.`)
   }
+
+  return report
 }
 
 // ---------------------------------------------------------------------------
 // contracts
 // ---------------------------------------------------------------------------
 
-function cmdContracts(): void {
+function cmdContracts(): StatusReport {
   console.log('Validating API contracts...')
-  cmdValidate()
+  const report = cmdValidate()
 
   const config = loadConfig()
   const all    = loadAll(config.schemasDir)
@@ -718,10 +759,14 @@ function cmdContracts(): void {
     console.log(`  Found ${endpointSchemas.length} endpoint schema(s):`)
     for (const { content } of endpointSchemas) {
       const eps = content['endpoints'] as Array<Record<string, unknown>>
-      console.log(`    ${content['id']} — ${eps.length} endpoint(s)`)
+      const name = content['id'] as string
+      console.log(`    ${name} — ${eps.length} endpoint(s)`)
+      report.contracts.push({ name, passing: true })
     }
     console.log('  ✓ All endpoint model references valid.')
   }
+
+  return report
 }
 
 // ---------------------------------------------------------------------------
@@ -905,28 +950,95 @@ function cmdRegistryScan(): void {
 }
 
 // ---------------------------------------------------------------------------
+// quality:check
+// ---------------------------------------------------------------------------
+
+async function cmdQualityCheck(): Promise<boolean> {
+  const config = loadConfig()
+
+  if (!config.quality) {
+    console.error(chalk.red('  ✗ No quality block in sentinel.yaml'))
+    console.error(chalk.dim('  Add a quality: section to enable code quality checks'))
+    process.exit(1)
+  }
+
+  console.log(chalk.bold.white('\n  Sentinel — Quality Check\n'))
+
+  const result = await checkQuality(config.projectRoot, config.quality)
+
+  if (result.issues.length === 0) {
+    console.log(chalk.green('  ✓') + ` All ${result.checkedCount} quality checks passed` + chalk.dim(` (${result.durationMs}ms)`))
+  } else {
+    const errors = result.issues.filter(i => i.severity === 'error')
+    const warnings = result.issues.filter(i => i.severity === 'warning')
+
+    for (const issue of result.issues) {
+      const prefix = issue.severity === 'error' ? chalk.red('  ✗') : chalk.yellow('  ⚠')
+      console.log(`${prefix} ${chalk.dim(`[${issue.rule}]`)} ${issue.message}`)
+      if (issue.fix) {
+        console.log(`     ${chalk.dim('fix:')} ${chalk.dim(issue.fix)}`)
+      }
+    }
+
+    console.log()
+    if (errors.length > 0) {
+      console.log(chalk.red(`  ✗ ${errors.length} error${errors.length !== 1 ? 's' : ''}`) + (warnings.length > 0 ? chalk.yellow(`, ${warnings.length} warning${warnings.length !== 1 ? 's' : ''}`) : ''))
+    } else {
+      console.log(chalk.yellow(`  ⚠ ${warnings.length} warning${warnings.length !== 1 ? 's' : ''}`))
+    }
+  }
+
+  console.log()
+  return result.passed
+}
+
+// ---------------------------------------------------------------------------
 // CLI entry point
 // ---------------------------------------------------------------------------
 
-const cmd = process.argv[2];
+const cmd = process.argv[2]
+const writeStatusPath = parseWriteStatus();
 
 (async () => {
+  let report: StatusReport | null = null
+
   switch (cmd) {
-    case 'schema:validate':  cmdValidate(); break
+    case 'schema:validate':  report = cmdValidate(); break
     case 'schema:generate':  await cmdGenerate(); break
-    case 'contracts':        cmdContracts(); break
+    case 'contracts':        report = cmdContracts(); break
     case 'mock:generate':    await cmdMockGenerate(); break
-    case 'mock:validate':    cmdMockValidate(); break
+    case 'mock:validate':    report = cmdMockValidate(); break
     case 'catalog:capture':  await cmdCatalogCapture(); break
     case 'catalog:validate': await cmdCatalogValidate(); break
     case 'catalog:index':    await cmdCatalogIndex(); break
     case 'catalog:upload':   await cmdCatalogUpload(); break
     case 'registry:scan':    cmdRegistryScan(); break
-    case 'all':              cmdValidate(); await cmdGenerate(); await cmdMockGenerate(); break
+    case 'quality:check': {
+      const passed = await cmdQualityCheck()
+      if (!passed) process.exit(1)
+      break
+    }
+    case 'all': {
+      report = cmdValidate()
+      await cmdGenerate()
+      await cmdMockGenerate()
+      break
+    }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | mock:generate | mock:validate | catalog:capture | catalog:validate | catalog:index | catalog:upload | catalog:capture | registry:scan [--file <path>] [--json] [--warn] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | mock:generate | mock:validate | catalog:capture | catalog:validate | catalog:index | catalog:upload | registry:scan | quality:check [--file <path>] [--json] [--warn] | all')
       process.exit(1)
+  }
+
+  if (writeStatusPath && report) {
+    writeStatusFile(writeStatusPath, report)
+  }
+
+  // Deferred exit for validation failures
+  if (report) {
+    const hasSchemaErrors = report.schemas.some((s) => !s.valid)
+    const hasMockErrors = report.mocks.some((m) => !m.coverage)
+    if (hasSchemaErrors || hasMockErrors) process.exit(1)
   }
 })().catch((e: unknown) => {
   console.error(e instanceof Error ? e.message : String(e))

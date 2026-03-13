@@ -57,8 +57,8 @@ function validateConfig(config: SentinelConfig, filePath: string): void {
   if (!config.sentinel) errors.push('Missing required field: sentinel (version)')
   if (!config.project) errors.push('Missing required field: project')
   if (!config.version) errors.push('Missing required field: version')
-  if (!config.platforms || Object.keys(config.platforms).length === 0) {
-    errors.push('Missing required field: platforms (must declare at least one)')
+  if ((!config.platforms || Object.keys(config.platforms).length === 0) && !config.quality) {
+    errors.push('Missing required field: platforms (must declare at least one) or quality')
   }
 
   if (errors.length > 0) {
