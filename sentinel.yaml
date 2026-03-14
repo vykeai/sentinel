@@ -1,0 +1,53 @@
+# sentinel.yaml — place at the repo root of your project
+#
+# Platform key names must be one of: api | apple | google | web | web-admin | desktop
+# These exact keys are how sentinel identifies each platform internally.
+#
+# Commands:
+#   sentinel schema:validate  — validate schemas, check staleness, warn on drift
+#   sentinel schema:generate  — generate tokens, strings, flags, models for all platforms
+#   sentinel mock:generate    — generate MockURLProtocol.swift + MockDispatcher.kt
+#   sentinel mock:validate    — validate all fixture JSON against endpoint schemas
+#   sentinel all              — validate → generate → mock:generate
+
+sentinel: "1.0"
+project: my-app
+version: "1.0.0"
+
+# Optional: path to the sentinel/ directory. Default: ./sentinel
+# location: ./sentinel
+
+platforms:
+  apple:
+    path: apple/
+    language: swift
+    output:
+      tokens:    apple/MyApp/DesignSystem/Tokens/AppTokens.swift
+      strings:   apple/MyApp/Resources/Strings.swift
+      flags:     apple/MyApp/Core/FeatureFlags.swift
+      models:    apple/MyApp/Core/Network/GeneratedModels.swift
+      endpoints: apple/MyApp/Core/Network/GeneratedEndpoints.swift
+      # mock:generate writes MockURLProtocol.swift here (wrapped in #if DEBUG)
+      mock:      apple/MyApp/Core/Network/MockURLProtocol.swift
+
+  google:
+    path: google/
+    language: kotlin
+    output:
+      tokens:    google/app/src/main/kotlin/com/myapp/design/AppTokens.kt
+      strings:   google/app/src/main/res/values/strings.xml
+      flags:     google/app/src/main/kotlin/com/myapp/core/FeatureFlags.kt
+      models:    google/app/src/main/kotlin/com/myapp/core/network/GeneratedModels.kt
+      endpoints: google/app/src/main/kotlin/com/myapp/core/network/GeneratedEndpoints.kt
+      # mock:generate writes MockDispatcher.kt here (debug source set only)
+      mock:      google/app/src/debug/kotlin/com/myapp/core/mock/MockDispatcher.kt
+
+  web:
+    path: web/app/
+    language: typescript
+    framework: nextjs
+    output:
+      tokens:    web/app/src/styles/tokens.css
+      strings:   web/app/src/lib/strings.ts
+      flags:     web/app/src/lib/featureFlags.ts
+      endpoints: web/app/src/lib/generatedEndpoints.ts
