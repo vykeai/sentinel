@@ -73,12 +73,22 @@ export interface NotificationsConfig {
 
 // ─── Invariant Checks ─────────────────────────────────────────────────────────
 
-export interface InvariantCheck {
+export interface InvariantContainsCheck {
   file: string             // path relative to project root
   contains: string         // substring that must be present in the file
   error: string            // error message shown if check fails
   fix?: string             // suggested fix
 }
+
+export interface InvariantPatternCheck {
+  pattern: string
+  files: string | string[]
+  exclude?: string | string[]
+  error: string
+  fix?: string
+}
+
+export type InvariantCheck = InvariantContainsCheck | InvariantPatternCheck
 
 // ─── Catalog Config ───────────────────────────────────────────────────────────
 
