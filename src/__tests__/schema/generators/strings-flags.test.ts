@@ -255,4 +255,23 @@ describe('generateWebFlags', () => {
     expect(output).toContain('newWorkoutFlow')
     expect(output).toContain('proAnalytics')    // both flags are web-platform
   })
+
+  it('falls back to all flags when a project has no web-tagged flags', () => {
+    const noWebFlags = {
+      $sentinel: '1.0', type: 'feature-flags', version: '1.0.0',
+      flags: [
+        { key: 'TRAINING_PLANS', description: 'Plans', defaultEnabled: false, platforms: ['apple', 'google'], milestone: 2 },
+        { key: 'PROGRESS_PHOTOS', description: 'Photos', defaultEnabled: false, platforms: ['apple', 'google'], milestone: 2 },
+      ],
+    }
+
+    const { config, dir: d } = makeConfig(EXAMPLE_STRINGS, noWebFlags)
+    dir = d
+    generateWebFlags(config)
+    const output = fs.readFileSync(config.platforms.web!.output.flags!, 'utf-8')
+
+    expect(output).toContain(`type FlagKey = 'trainingPlans' | 'progressPhotos'`)
+    expect(output).toContain('get trainingPlans(): boolean')
+    expect(output).toContain('get progressPhotos(): boolean')
+  })
 })
