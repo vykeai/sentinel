@@ -38,10 +38,7 @@ export function generateGoogleModels(config: ResolvedConfig): void {
   const output = [
     generatedHeader('sentinel/generators/google/models', 'sentinel/schemas/models/', headerHash),
     `package ${pkg}`,
-    ``,
-    `import kotlinx.serialization.SerialName`,
     `import kotlinx.serialization.Serializable`,
-    ``,
     `@Suppress("unused")`,
     blocks.join('\n\n'),
   ].join('\n')
@@ -70,11 +67,7 @@ function generateKotlinEnum(model: ModelSchema): string {
     if (v.description) lines.push(`    /** ${v.description} */`)
     const enumCase = toKotlinEnumCase(v.name)
     const suffix = i < values.length - 1 ? ',' : ';'
-    if (enumCase !== v.rawValue.toUpperCase()) {
-      lines.push(`    @SerialName("${v.rawValue}") ${enumCase}("${v.rawValue}")${suffix}`)
-    } else {
-      lines.push(`    ${enumCase}("${v.rawValue}")${suffix}`)
-    }
+    lines.push(`    ${enumCase}("${v.rawValue}")${suffix}`)
   })
   lines.push(`}`)
   return lines.join('\n')

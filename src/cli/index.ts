@@ -15,13 +15,15 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs'
-import { join, dirname, basename } from 'path'
+import { join, dirname, basename, relative, sep } from 'path'
 import chalk from 'chalk'
-import { loadConfig } from '../config/loader.js'
+import { findConfigFile, loadConfig } from '../config/loader.js'
 import { generateAll } from '../schema/index.js'
 import { checkStaleness } from '../schema/validators/staleness.js'
 import { checkQuality } from '../schema/validators/quality.js'
 import { scanRegistry } from '../catalog/registry.js'
+import { checkMockIntegration, findFixturePathCandidates } from '../mock/integration.js'
+import { runDoctorCheck } from '../doctor/check.js'
 import type { ResolvedConfig } from '../config/types.js'
 
 // ---------------------------------------------------------------------------
@@ -283,9 +285,11 @@ function walkJsonFiles(dir: string): string[] {
 function findFixturesForModel(fixturesDir: string, modelId: string): string[] {
   return walkJsonFiles(fixturesDir).filter((f) => {
     const base = basename(f, '.json')
-    return base === modelId || base === `${modelId}s` ||
-      base.startsWith(`${modelId}-`) || base.startsWith(`${modelId}_`) ||
-      f.includes(`/${modelId}/`) || f.includes(`/${modelId}s/`)
+    const parts = relative(fixturesDir, f).split(sep)
+    const directories = parts.slice(0, -1)
+    return base === modelId
+      || directories.includes(modelId)
+      || directories.includes(`${modelId}s`)
   })
 }
 
@@ -414,6 +418,8 @@ interface MockConfig {
   endpoints: EndpointFixtureMapping[]
 }
 
+const SENTINEL_PACKAGE_NAME = '@sentinel/cli'
+
 function loadMockConfig(config: ResolvedConfig): MockConfig | null {
   const all = loadAll(config.schemasDir)
   const raw = all.platform.find((s) => s.content['type'] === 'mock-config')?.content
@@ -421,10 +427,12 @@ function loadMockConfig(config: ResolvedConfig): MockConfig | null {
   return raw as unknown as MockConfig
 }
 
-// Normalise path pattern → regex that also matches with query strings
-// e.g. /api/v1/users/:id → ^/api/v1/users/[^/]+(\?.*)?$
+// Normalise path pattern → regex that also matches with query strings.
+// Use a character class for "?" so the generated pattern is valid in
+// both Swift raw strings and Kotlin quoted strings.
+// e.g. /api/v1/users/:id → ^/api/v1/users/[^/]+([?].*)?$
 function pathToPattern(p: string): string {
-  return '^' + p.replace(/:[^/]+/g, '[^/]+') + '(\\?.*)?$'
+  return '^' + p.replace(/:[^/]+/g, '[^/]+') + '([?].*)?$'
 }
 
 function genSwiftMockURLProtocol(mappings: EndpointFixtureMapping[]): string {
@@ -671,16 +679,10 @@ function cmdMockValidate(): StatusReport {
   const warnings: string[] = []
   const mappings = mockConfig.endpoints ?? []
 
-  // Derive the fixtures base directory from mock-config (first entry), falling back
-  // to sentinelDir/fixtures — this correctly respects the 'location' config field.
-  const fixtureRelPath = mockConfig.fixtures[0]?.path
-  const fixturesBase   = fixtureRelPath
-    ? join(config.projectRoot, fixtureRelPath)
-    : join(config.sentinelDir, 'fixtures')
-
   for (const mapping of mappings) {
-    const fixturePath = join(fixturesBase, mapping.fixture)
-    if (!existsSync(fixturePath)) {
+    const fixtureCandidates = findFixturePathCandidates(config.projectRoot, mockConfig.fixtures ?? [], mapping.fixture)
+    const fixturePath = fixtureCandidates.find((candidate) => existsSync(candidate))
+    if (!fixturePath) {
       errors.push(`  ✗ Fixture not found: ${mapping.fixture}`)
       report.mocks.push({ endpoint: `${mapping.method} ${mapping.path}`, coverage: false })
       continue
@@ -729,6 +731,16 @@ function cmdMockValidate(): StatusReport {
     console.log(`  ✓ ${mapping.method} ${mapping.path} → ${mapping.fixture}`)
   }
 
+  const integrationIssues = checkMockIntegration(config, mockConfig)
+  for (const issue of integrationIssues) {
+    if (issue.severity === 'error') {
+      errors.push(`  ✗ ${issue.message}`)
+      report.mocks.push({ endpoint: issue.code, coverage: false })
+    } else {
+      warnings.push(`  ⚠ ${issue.message}`)
+    }
+  }
+
   if (warnings.length) { console.log(''); warnings.forEach((w) => console.log(w)) }
   if (errors.length) {
     console.log('')
@@ -739,6 +751,39 @@ function cmdMockValidate(): StatusReport {
   }
 
   return report
+}
+
+function cmdDoctor(): boolean {
+  const configPath = findConfigFile(process.cwd())
+  const projectRoot = configPath ? dirname(configPath) : process.cwd()
+  const jsonMode = process.argv.includes('--json')
+  const fixMode = process.argv.includes('--fix')
+  const result = runDoctorCheck(projectRoot, SENTINEL_PACKAGE_NAME, { fix: fixMode })
+
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+    return result.passed
+  }
+
+  console.log(chalk.bold('\n  Sentinel Doctor\n'))
+  if (result.fixed) {
+    console.log(chalk.green('  ✓ Normalized package.json Sentinel scripts where safe\n'))
+  }
+
+  if (result.issues.length === 0) {
+    console.log(chalk.green('  ✓ No install or configuration issues found\n'))
+    return true
+  }
+
+  for (const issue of result.issues) {
+    const prefix = issue.severity === 'error' ? chalk.red('  ✗') : chalk.yellow('  ⚠')
+    console.log(`${prefix} ${chalk.dim(`[${issue.code}]`)} ${issue.message}`)
+    if (issue.fix) {
+      console.log(`     ${chalk.dim('fix:')} ${chalk.dim(issue.fix)}`)
+    }
+  }
+  console.log('')
+  return result.passed
 }
 
 // ---------------------------------------------------------------------------
@@ -787,11 +832,12 @@ async function cmdCatalogCapture(): Promise<void> {
   const osFilter      = args.find((_, i) => args[i - 1] === '--os') as any
   const deviceFilter  = args.find((_, i) => args[i - 1] === '--device') as any
   const variantFilter = args.find((_, i) => args[i - 1] === '--variant') as any
+  const appVariant    = args.find((_, i) => args[i - 1] === '--app-variant')
   const skipExisting  = args.includes('--skip-existing')
 
   console.log(chalk.bold('\n  Catalog capture\n'))
   const results = await runCapture(config.catalog, config.projectRoot, {
-    screenFilter, osFilter, deviceFilter, variantFilter, skipExisting,
+    screenFilter, osFilter, deviceFilter, variantFilter, appVariant, skipExisting,
   })
 
   const ok      = results.filter((r) => r.success && !r.skipped).length
@@ -1032,6 +1078,11 @@ const writeStatusPath = parseWriteStatus();
       if (!passed) process.exit(1)
       break
     }
+    case 'doctor': {
+      const passed = cmdDoctor()
+      if (!passed) process.exit(1)
+      break
+    }
     case 'all': {
       report = cmdValidate()
       await cmdGenerate()
@@ -1040,7 +1091,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | mock:generate | mock:validate | catalog:capture | catalog:validate | catalog:index | catalog:upload | registry:scan | quality:check [--file <path>] [--json] [--warn] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate | catalog:index | catalog:upload | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] | all')
       process.exit(1)
   }
 
