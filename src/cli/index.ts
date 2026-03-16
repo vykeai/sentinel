@@ -8,6 +8,7 @@
  *   schema:validate  — Validate schemas, check stale generated files, warn on unused keys.
  *   schema:generate  — Generate all platform files from schemas.
  *   contracts        — Validate API endpoint contracts.
+ *   contracts:matrix — Show feature completeness and cross-platform coverage.
  *   mock:generate    — Generate MockURLProtocol.swift + MockDispatcher.kt.
  *   mock:validate    — Validate fixture JSON against endpoint schemas.
  *   registry:scan    — Find screen files not registered in sentinel.yaml screens:.
@@ -19,12 +20,15 @@ import { join, dirname, basename, relative, sep } from 'path'
 import chalk from 'chalk'
 import { findConfigFile, loadConfig } from '../config/loader.js'
 import { generateAll } from '../schema/index.js'
+import { checkInvariants } from '../schema/validators/invariants.js'
 import { checkStaleness } from '../schema/validators/staleness.js'
 import { checkQuality } from '../schema/validators/quality.js'
 import { scanRegistry } from '../catalog/registry.js'
 import { checkMockIntegration, findFixturePathCandidates } from '../mock/integration.js'
 import { runDoctorCheck } from '../doctor/check.js'
-import type { ResolvedConfig } from '../config/types.js'
+import { buildFeatureMatrix, printMatrix } from '../contracts/feature-matrix.js'
+import { formatWarningSummary } from './warnings.js'
+import type { PlatformKey, ResolvedConfig } from '../config/types.js'
 
 // ---------------------------------------------------------------------------
 // Schema loading
@@ -83,6 +87,14 @@ function emptyReport(): StatusReport {
   return { lastRun: new Date().toISOString(), schemas: [], contracts: [], mocks: [] }
 }
 
+function parseMaxWarnings(): number {
+  const idx = process.argv.indexOf('--max-warnings')
+  if (idx === -1 || idx + 1 >= process.argv.length) return 40
+
+  const parsed = Number.parseInt(process.argv[idx + 1] ?? '', 10)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 40
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -102,6 +114,11 @@ function deriveKotlinPackage(outputPath: string): string {
   const match = outputPath.match(/kotlin\/(.+)\/[^/]+\.kt$/)
   if (match) return match[1].replace(/\//g, '.')
   return 'app.sentinel.mock'
+}
+
+function formatIssueMessage(message: string, file: string | undefined, projectRoot: string): string {
+  if (!file) return message
+  return `${message} [${relative(projectRoot, file)}]`
 }
 
 // ---------------------------------------------------------------------------
@@ -239,8 +256,16 @@ function cmdValidate(): StatusReport {
   // ── Staleness detection (hash-based, CI-safe) ─────────────────────────────
   const staleness = checkStaleness(config)
   for (const issue of staleness.issues) {
-    if (issue.severity === 'error') errors.push(issue.message)
-    else warnings.push(issue.message)
+    const formatted = formatIssueMessage(issue.message, issue.file, config.projectRoot)
+    if (issue.severity === 'error') errors.push(formatted)
+    else warnings.push(formatted)
+  }
+
+  const invariants = checkInvariants(config)
+  for (const issue of invariants.issues) {
+    const formatted = formatIssueMessage(issue.message, issue.file, config.projectRoot)
+    if (issue.severity === 'error') errors.push(formatted)
+    else warnings.push(formatted)
   }
 
   // ── Mock fixture warnings ─────────────────────────────────────────────────
@@ -248,10 +273,7 @@ function cmdValidate(): StatusReport {
 
   const total = all.design.length + all.features.length + all.models.length + all.platform.length
 
-  if (warnings.length > 0) {
-    console.warn(`\n  Warnings (${warnings.length}):`)
-    warnings.forEach((w) => console.warn(`    ⚠  ${w}`))
-  }
+  formatWarningSummary(warnings, parseMaxWarnings()).forEach((line) => console.warn(line))
 
   if (errors.length > 0) {
     console.error(`\n✗ Schema validation failed:\n`)
@@ -814,6 +836,50 @@ function cmdContracts(): StatusReport {
   return report
 }
 
+async function cmdContractsMatrix(): Promise<StatusReport> {
+  const report = emptyReport()
+  const config = loadConfig()
+  const { rows, result } = await buildFeatureMatrix(config)
+  const activePlatforms = Object.keys(config.platforms ?? {}) as PlatformKey[]
+
+  console.log(chalk.bold('\n  Feature matrix\n'))
+  printMatrix(rows, activePlatforms)
+
+  const failingFeatures = new Set(
+    result.issues
+      .filter((issue) => issue.severity === 'error' && issue.feature)
+      .map((issue) => issue.feature as string),
+  )
+
+  report.contracts = rows.map((row) => ({
+    name: row.feature,
+    passing: !failingFeatures.has(row.feature),
+  }))
+
+  const visibleIssues = result.issues.filter((issue) => issue.severity !== 'info')
+  const infoCount = result.issues.length - visibleIssues.length
+
+  if (visibleIssues.length > 0) {
+    console.log(chalk.bold('\n  Contract issues\n'))
+    for (const issue of visibleIssues) {
+      const prefix = issue.severity === 'error' ? chalk.red('  ✗') : chalk.yellow('  ⚠')
+      const feature = issue.feature ? `${chalk.dim(`[${issue.feature}]`)} ` : ''
+      console.log(`${prefix} ${feature}${issue.message}`)
+      if (issue.fix) {
+        console.log(`     ${chalk.dim('fix:')} ${chalk.dim(issue.fix)}`)
+      }
+    }
+  } else {
+    console.log(chalk.green('\n  ✓ Contract matrix checks passed'))
+  }
+
+  if (infoCount > 0) {
+    console.log(chalk.dim(`\n  ${infoCount} info item(s) omitted`))
+  }
+
+  return report
+}
+
 // ---------------------------------------------------------------------------
 // catalog
 // ---------------------------------------------------------------------------
@@ -1066,6 +1132,7 @@ const writeStatusPath = parseWriteStatus();
     case 'schema:validate':  report = cmdValidate(); break
     case 'schema:generate':  await cmdGenerate(); break
     case 'contracts':        report = cmdContracts(); break
+    case 'contracts:matrix': report = await cmdContractsMatrix(); break
     case 'mock:generate':    await cmdMockGenerate(); break
     case 'mock:validate':    report = cmdMockValidate(); break
     case 'catalog:capture':  await cmdCatalogCapture(); break
@@ -1091,7 +1158,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate | catalog:index | catalog:upload | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate | catalog:index | catalog:upload | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] | all')
       process.exit(1)
   }
 
@@ -1102,8 +1169,9 @@ const writeStatusPath = parseWriteStatus();
   // Deferred exit for validation failures
   if (report) {
     const hasSchemaErrors = report.schemas.some((s) => !s.valid)
+    const hasContractErrors = report.contracts.some((c) => !c.passing)
     const hasMockErrors = report.mocks.some((m) => !m.coverage)
-    if (hasSchemaErrors || hasMockErrors) process.exit(1)
+    if (hasSchemaErrors || hasContractErrors || hasMockErrors) process.exit(1)
   }
 })().catch((e: unknown) => {
   console.error(e instanceof Error ? e.message : String(e))
