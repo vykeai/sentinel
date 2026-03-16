@@ -10,9 +10,10 @@ export function generateWebFlags(config: ResolvedConfig): void {
   const flagsPath = path.join(config.platformDir, 'feature-flags.json')
   const schema = readJSON<FeatureFlagsSchema>(flagsPath)
 
-  const webFlags = schema.flags.filter(f =>
+  const platformFlags = schema.flags.filter(f =>
     f.platforms.includes('web') || f.platforms.includes('web-admin')
   )
+  const webFlags = platformFlags.length > 0 ? platformFlags : schema.flags
 
   const defaults = Object.fromEntries(webFlags.map(f => [toCamel(f.key), f.defaultEnabled]))
 
