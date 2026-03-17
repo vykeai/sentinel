@@ -59,8 +59,8 @@ describe('generateGoogleTokens', () => {
         },
       },
       typography: {
-        fontSizes: { base: { value: '16px' } },
-        lineHeights: { normal: { value: '1.5' } },
+        fontSizes: { base: { value: '16px' }, '2xl': { value: '24px' } },
+        lineHeights: { normal: { value: '1.5' }, '2xl': { value: '1.75' } },
       },
       spacing: { 4: { value: '16px' } },
     })
@@ -76,7 +76,12 @@ describe('generateGoogleTokens', () => {
     expect(output).toContain('// Hash:')
     expect(output).toContain('object TestappTokens')
     expect(output).toContain('val base = 16.sp')
+    expect(output).toContain('val s2xl = 24.sp')
+    expect(output).toContain('val s2xl = 1.75f')
     expect(output).toContain('val s4 = 16.dp')
+    expect(output).toContain('object AppTokensColorBrand')
+    expect(output).toContain('object AppTokensSpacing')
+    expect(output).toContain('val smd get() = TestappTokens.Spacing.md')
   })
 
   it('handles full (pill) border radius as 999.dp', () => {

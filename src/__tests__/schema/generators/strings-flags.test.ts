@@ -99,7 +99,8 @@ describe('generateAppleStrings', () => {
     expect(output).toContain('public enum Strings')
     expect(output).toContain('enum Common')
     expect(output).toContain('static let ok')
-    expect(output).toContain('"OK"')
+    expect(output).toContain('Bundle.main.localizedString')
+    expect(output).toContain('value: "OK"')
   })
 
   it('converts dot-notation to camelCase names', () => {

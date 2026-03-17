@@ -62,9 +62,11 @@ describe('generateAppleTokens', () => {
       typography: {
         fontSizes: {
           base: { value: '16px' },
+          '2xl': { value: '24px' },
         },
         lineHeights: {
           normal: { value: '1.5' },
+          '2xl': { value: '1.75' },
         },
       },
       spacing: {
@@ -87,12 +89,17 @@ describe('generateAppleTokens', () => {
 
     // Typography uses `public static let base: CGFloat = 16`
     expect(output).toContain('public static let base: CGFloat = 16')
+    expect(output).toContain('public static let s2xl: CGFloat = 24')
 
     // LineHeight
     expect(output).toContain('public static let normal: CGFloat = 1.5')
+    expect(output).toContain('public static let s2xl: CGFloat = 1.75')
 
     // Spacing: numeric key gets 's' prefix
     expect(output).toContain('public static let s4: CGFloat = 16')
+    expect(output).toContain('public enum AppTokensColorBrand')
+    expect(output).toContain('public enum AppTokensSpacing')
+    expect(output).toContain('public static let smd = Tokens.Spacing.md')
   })
 
   it('handles nested color enum structure', () => {

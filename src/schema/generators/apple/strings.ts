@@ -50,14 +50,14 @@ function generateStringNamespaces(schema: StringsSchema): string {
   for (const [ns, keys] of namespaces) {
     if (ns === '_root') {
       for (const [k, v] of keys) {
-        lines.push(`  public static let ${toCamel(k)} = NSLocalizedString("${k}", comment: "${v}")`)
+        lines.push(`  public static let ${toCamel(k)} = Bundle.main.localizedString(forKey: "${escapeSwiftString(k)}", value: "${escapeSwiftString(v)}", table: nil)`)
       }
     } else {
       const enumName = ns.charAt(0).toUpperCase() + ns.slice(1)
       lines.push(`  public enum ${enumName} {`)
       for (const [k, v] of keys) {
         const fullKey = `${ns}.${k}`
-        lines.push(`    public static let ${toCamel(k)} = NSLocalizedString("${fullKey}", comment: "${v}")`)
+        lines.push(`    public static let ${toCamel(k)} = Bundle.main.localizedString(forKey: "${escapeSwiftString(fullKey)}", value: "${escapeSwiftString(v)}", table: nil)`)
       }
       lines.push(`  }`)
     }
@@ -68,4 +68,10 @@ function generateStringNamespaces(schema: StringsSchema): string {
 
 function toCamel(key: string): string {
   return key.replace(/[._]([a-zA-Z])/g, (_, c: string) => c.toUpperCase())
+}
+
+function escapeSwiftString(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
 }
