@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import {
   type AtlasManifestFixture,
+  type AtlasManifestReviewBinding,
   type AtlasSessionCaptureArtifact,
   type AtlasSessionCaptureIndex,
   validateAtlasFixtureSet,
@@ -9,7 +10,11 @@ import {
   validateAtlasSessionCaptureIndex,
 } from './atlas-compat.js'
 
-export type AtlasValidationIssueKind = 'coverage-drift' | 'artifact-mismatch' | 'adapter-misuse'
+export type AtlasValidationIssueKind =
+  | 'coverage-drift'
+  | 'artifact-mismatch'
+  | 'adapter-misuse'
+  | 'review-metadata-missing'
 
 export interface ExpectedAtlasArtifact {
   key: string
@@ -47,6 +52,7 @@ export interface AtlasValidationIssue {
   kind: AtlasValidationIssueKind
   key: string
   message: string
+  fix?: string
 }
 
 export interface AtlasValidationResult {
@@ -87,6 +93,27 @@ function buildArtifactLabel(
     scenario?.title ?? capture.scenarioId,
     target?.deviceName ?? capture.targetId,
   )
+}
+
+function buildReviewBindingLabel(
+  manifest: AtlasManifestFixture,
+  binding: AtlasManifestReviewBinding,
+): string {
+  const { pathById, scenarioById } = buildLookupMaps(manifest)
+  const surface = manifest.surfaces.find((entry) => entry.id === binding.surfaceId)
+  const pathEntry = surface ? pathById.get(surface.pathId) : null
+  const scenario = scenarioById.get(binding.scenarioId)
+
+  return buildExpectedLabel(
+    pathEntry?.title ?? surface?.pathId ?? binding.surfaceId,
+    surface?.title ?? binding.surfaceId,
+    scenario?.title ?? binding.scenarioId,
+    'Brandie review context',
+  )
+}
+
+function bindingHasReviewPayload(binding: AtlasManifestReviewBinding): boolean {
+  return Boolean(binding.sourceScreenId || binding.voiceContext || binding.mascot || binding.illustration)
 }
 
 export function buildExpectedAtlasArtifacts(manifest: AtlasManifestFixture): ExpectedAtlasArtifact[] {
@@ -212,6 +239,7 @@ export function validateAtlasCatalog(
         kind: 'adapter-misuse',
         key: 'atlas-adapter-misuse',
         message: error instanceof Error ? error.message : String(error),
+        fix: 'Repair the Atlas manifest/session fixture pair before asking Sentinel to validate review coverage',
       }],
     }
   }
@@ -239,6 +267,7 @@ export function validateAtlasCatalog(
         kind: 'coverage-drift',
         key: artifact.key,
         message: `${buildExpectedLabel(artifact.pathTitle, artifact.surfaceTitle, artifact.scenarioTitle, artifact.targetLabel)} is missing a screenshot capture record`,
+        fix: 'Run the Atlas capture flow for this surface/scenario/target so the session index includes a screenshot record',
       })
       continue
     }
@@ -258,6 +287,17 @@ export function validateAtlasCatalog(
       kind: 'artifact-mismatch',
       key: artifact.key,
       message: `${buildArtifactLabel(manifest, primary)} has a screenshot record but no renderable artifact (${primary.status})`,
+      fix: `Repair or regenerate ${primary.artifactPath} so the screenshot artifact exists on disk and matches the Atlas session index`,
+    })
+  }
+
+  for (const binding of manifest.reviewContext?.bindings ?? []) {
+    if (bindingHasReviewPayload(binding)) continue
+    issues.push({
+      kind: 'review-metadata-missing',
+      key: `${binding.surfaceId}::${binding.scenarioId}::review-context`,
+      message: `${buildReviewBindingLabel(manifest, binding)} is bound to Brandie source "${binding.sourceId}" but Atlas did not attach any review payload`,
+      fix: 'Attach Brandie review payload in Atlas reviewContext.bindings[] (voiceContext, mascot, illustration, or sourceScreenId), or remove the binding until Atlas resolves that metadata honestly',
     })
   }
 

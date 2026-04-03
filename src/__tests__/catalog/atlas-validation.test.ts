@@ -17,6 +17,14 @@ import {
 describe('atlas validation', () => {
   let dir = ''
 
+  function materializeCapturedArtifacts(projectDir: string, sessionIndex: AtlasSessionCaptureIndex): void {
+    for (const capture of sessionIndex.captures.filter((entry) => entry.status === 'captured')) {
+      const absolute = path.join(projectDir, capture.artifactPath)
+      fs.mkdirSync(path.dirname(absolute), { recursive: true })
+      fs.writeFileSync(absolute, '')
+    }
+  }
+
   afterEach(() => {
     if (dir) fs.rmSync(dir, { recursive: true, force: true })
   })
@@ -39,12 +47,7 @@ describe('atlas validation', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-validate-'))
     const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
     const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-mobile.v1.json')
-
-    for (const capture of sessionIndex.captures.filter((entry) => entry.status === 'captured')) {
-      const absolute = path.join(dir, capture.artifactPath)
-      fs.mkdirSync(path.dirname(absolute), { recursive: true })
-      fs.writeFileSync(absolute, '')
-    }
+    materializeCapturedArtifacts(dir, sessionIndex)
 
     const result = validateAtlasCatalog(manifest, sessionIndex, dir)
     const units = buildAtlasComparisonUnits(manifest, sessionIndex, dir)
@@ -79,6 +82,59 @@ describe('atlas validation', () => {
       expect.objectContaining({
         kind: 'adapter-misuse',
       }),
+    ])
+  })
+
+  it('classifies missing review metadata separately when Brandie bindings have no payload', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-validate-'))
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-brand-aware.v1.json')
+    materializeCapturedArtifacts(dir, sessionIndex)
+
+    const hydratedSession = JSON.parse(JSON.stringify(sessionIndex)) as AtlasSessionCaptureIndex
+    hydratedSession.captures[2].status = 'captured'
+    fs.mkdirSync(path.dirname(path.join(dir, hydratedSession.captures[2].artifactPath)), { recursive: true })
+    fs.writeFileSync(path.join(dir, hydratedSession.captures[2].artifactPath), '')
+
+    const metadataMissingManifest = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture
+    const metadataMissingBinding = metadataMissingManifest.reviewContext?.bindings[0]
+    if (!metadataMissingBinding) throw new Error('expected brand-aware review binding')
+    delete metadataMissingBinding.voiceContext
+    delete metadataMissingBinding.mascot
+    delete metadataMissingBinding.illustration
+    delete metadataMissingBinding.sourceScreenId
+
+    const result = validateAtlasCatalog(metadataMissingManifest, hydratedSession, dir)
+
+    expect(result.passed).toBe(false)
+    expect(result.issues.map((issue) => issue.kind)).toEqual([
+      'coverage-drift',
+      'coverage-drift',
+      'review-metadata-missing',
+    ])
+  })
+
+  it('reports mixed screenshot and review-metadata failures in the same Atlas validation pass', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-validate-'))
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-brand-aware.v1.json')
+    materializeCapturedArtifacts(dir, sessionIndex)
+
+    const metadataMissingManifest = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture
+    const metadataMissingBinding = metadataMissingManifest.reviewContext?.bindings[0]
+    if (!metadataMissingBinding) throw new Error('expected brand-aware review binding')
+    delete metadataMissingBinding.voiceContext
+    delete metadataMissingBinding.mascot
+    delete metadataMissingBinding.illustration
+    delete metadataMissingBinding.sourceScreenId
+
+    const result = validateAtlasCatalog(metadataMissingManifest, sessionIndex, dir)
+    expect(result.passed).toBe(false)
+    expect(result.issues.map((issue) => issue.kind)).toEqual([
+      'coverage-drift',
+      'coverage-drift',
+      'artifact-mismatch',
+      'review-metadata-missing',
     ])
   })
 })

@@ -952,20 +952,31 @@ async function cmdCatalogValidate(): Promise<void> {
     console.log(`  Parity pairs: ${result.parityPairs.length}`)
 
     if (!result.passed) {
-      const grouped = new Map<string, string[]>()
+      const grouped = new Map<string, typeof result.issues>()
       for (const issue of result.issues) {
         const existing = grouped.get(issue.kind) ?? []
-        existing.push(issue.message)
+        existing.push(issue)
         grouped.set(issue.kind, existing)
       }
 
-      for (const [kind, messages] of grouped.entries()) {
-        console.log(chalk.red(`\n  ${kind} (${messages.length}):`))
-        for (const message of messages) {
-          console.log(`    ✗  ${message}`)
+      for (const [kind, issues] of grouped.entries()) {
+        console.log(chalk.red(`\n  ${kind} (${issues.length}):`))
+        for (const issue of issues) {
+          console.log(`    ✗  ${issue.message}`)
+          if (issue.fix) {
+            console.log(`       fix: ${issue.fix}`)
+          }
         }
       }
-      console.log(`\n  Run: sentinel catalog:index --atlas-manifest ${atlasManifestPath}${sessionIndexPath ? ` --session-index ${sessionIndexPath}` : ''}`)
+
+      if (grouped.has('coverage-drift') || grouped.has('artifact-mismatch')) {
+        console.log(`\n  Atlas capture next: repair the screenshot lane, then rerun sentinel catalog:index --atlas-manifest ${atlasManifestPath}${sessionIndexPath ? ` --session-index ${sessionIndexPath}` : ''}`)
+      }
+
+      if (grouped.has('review-metadata-missing')) {
+        console.log(`  Brand review next: repair Atlas reviewContext or the Brandie export wiring, then rerun sentinel doctor --atlas-manifest ${atlasManifestPath}${sessionIndexPath ? ` --session-index ${sessionIndexPath}` : ''}`)
+      }
+
       process.exit(1)
     }
 

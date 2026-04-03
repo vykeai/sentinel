@@ -54,7 +54,7 @@
       "id": "wave-3",
       "name": "Brand-Aware Atlas Diagnostics",
       "goal": "Add a thin Sentinel follow-on wave that can inspect Brandie-backed Atlas review metadata, diagnose integration drift, and optionally expose that context in validation and review output without turning Sentinel into the primary review product.",
-      "status": "planned",
+      "status": "in_progress",
       "target": "2026-W31",
       "gates": [
         "wave-2"
@@ -65,14 +65,14 @@
           "name": "Brand-aware fixtures exist",
           "description": "Sentinel has realistic Atlas fixtures showing how Brandie review metadata flows through the compatibility layer.",
           "date": null,
-          "done": false
+          "done": true
         },
         {
           "id": "cp-3-2",
           "name": "Doctor and validation classify review-metadata drift",
           "description": "Sentinel can tell the difference between missing screenshot proof and missing Brandie review context.",
           "date": null,
-          "done": false
+          "done": true
         },
         {
           "id": "cp-3-3",

@@ -40,6 +40,7 @@ Atlas validation classifies failures as:
 - `coverage-drift`: an expected surface/scenario/target combination has no screenshot capture record
 - `artifact-mismatch`: a capture record exists but the screenshot artifact is missing or non-renderable
 - `adapter-misuse`: the manifest/session inputs disagree structurally
+- `review-metadata-missing`: Atlas declared a Brandie review binding but did not attach any usable review payload, so the next action belongs in Atlas/Brandie wiring rather than capture
 
 ## Ownership Split
 

@@ -39,6 +39,7 @@ Brandie owns:
 
 3. Atlas-backed review and validation
 - Teams wire scripts and CI to the Atlas-backed `catalog:index` and `catalog:validate` paths.
+- `catalog:validate` should separate missing screenshot proof from missing Brandie review payload so teams know whether the next fix belongs in Atlas capture or Atlas/Brandie wiring.
 - Sentinel Doctor should report no Atlas fixture or script-wiring issues.
 
 4. Legacy retirement
