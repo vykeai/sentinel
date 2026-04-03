@@ -12,6 +12,7 @@ import type {
 } from './types.js'
 import {
   type AtlasManifestFixture,
+  type AtlasManifestReviewBinding,
   type AtlasSessionCaptureIndex,
   validateAtlasFixtureSet,
   validateAtlasManifestFixture,
@@ -39,6 +40,7 @@ interface DashboardScenarioGroup {
   id: string
   title: string
   subtitle?: string
+  reviewContexts?: DashboardReviewContext[]
   targets: DashboardTargetGroup[]
 }
 
@@ -60,6 +62,13 @@ interface DashboardModel {
   title: string
   summary: string
   paths: DashboardPathGroup[]
+}
+
+interface DashboardReviewContext {
+  id: string
+  title: string
+  subtitle?: string
+  lines: string[]
 }
 
 function formatPath(pathValue: CatalogPath): string {
@@ -129,10 +138,27 @@ function renderScenario(scenario: DashboardScenarioGroup): string {
 <section class="scenario-card" id="${toDomId(scenario.id)}">
   <h4>${escapeHtml(scenario.title)}</h4>
   ${scenario.subtitle ? `<div class="meta">${escapeHtml(scenario.subtitle)}</div>` : ''}
+  ${scenario.reviewContexts && scenario.reviewContexts.length > 0 ? `
+  <div class="review-context-stack">
+    ${scenario.reviewContexts.map(renderReviewContext).join('\n')}
+  </div>` : ''}
   <div class="target-grid">
     ${scenario.targets.map(renderTarget).join('\n')}
   </div>
 </section>`
+}
+
+function renderReviewContext(reviewContext: DashboardReviewContext): string {
+  return `
+<aside class="review-context" id="${toDomId(reviewContext.id)}">
+  <div class="review-context-header">
+    <h5>${escapeHtml(reviewContext.title)}</h5>
+    ${reviewContext.subtitle ? `<div class="meta">${escapeHtml(reviewContext.subtitle)}</div>` : ''}
+  </div>
+  <ul class="review-context-list">
+    ${reviewContext.lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('\n')}
+  </ul>
+</aside>`
 }
 
 function renderSurface(surface: DashboardSurfaceGroup): string {
@@ -184,6 +210,7 @@ function renderDashboard(model: DashboardModel): string {
   .scenario-card { padding: 0.9rem; margin-top: 0.8rem; background: #151515; }
   .target-card { padding: 0.8rem; background: #171717; }
   .surface-stack, .scenario-stack { display: flex; flex-direction: column; gap: 0.8rem; }
+  .review-context-stack { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.7rem; }
   .target-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -217,6 +244,22 @@ function renderDashboard(model: DashboardModel): string {
   .capture.missing .placeholder { color: #d6b86d; }
   .capture.failed .placeholder { color: #e88d8d; }
   .meta { font-size: 0.78rem; }
+  .review-context {
+    border: 1px solid #243046;
+    border-radius: 10px;
+    background: #0f1622;
+    padding: 0.75rem;
+  }
+  .review-context-header { display: flex; flex-direction: column; gap: 0.2rem; }
+  .review-context-list {
+    margin: 0.55rem 0 0 1rem;
+    color: #cdd9ea;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
 </style>
 </head>
 <body>
@@ -301,6 +344,8 @@ function buildAtlasModel(
   const pathById = new Map(manifest.paths.map((entry) => [entry.id, entry]))
   const scenarioById = new Map(manifest.scenarios.map((entry) => [entry.id, entry]))
   const targetById = new Map(manifest.targets.map((entry) => [entry.id, entry]))
+  const reviewSourcesById = new Map((manifest.reviewContext?.sources ?? []).map((entry) => [entry.id, entry]))
+  const reviewBindingsByKey = new Map<string, AtlasManifestReviewBinding[]>()
 
   const capturesByKey = new Map<string, typeof sessionIndex.captures>()
   for (const capture of sessionIndex.captures) {
@@ -310,12 +355,39 @@ function buildAtlasModel(
     capturesByKey.set(key, existing)
   }
 
+  for (const binding of manifest.reviewContext?.bindings ?? []) {
+    const key = `${binding.surfaceId}::${binding.scenarioId}`
+    const existing = reviewBindingsByKey.get(key) ?? []
+    existing.push(binding)
+    reviewBindingsByKey.set(key, existing)
+  }
+
   const paths = manifest.paths.map((pathEntry): DashboardPathGroup => {
     const surfaces = manifest.surfaces
       .filter((surface) => surface.pathId === pathEntry.id)
       .map((surface): DashboardSurfaceGroup => {
         const scenarios = surface.scenarioIds.map((scenarioId): DashboardScenarioGroup => {
           const scenario = scenarioById.get(scenarioId)
+          const reviewContexts = (reviewBindingsByKey.get(`${surface.id}::${scenarioId}`) ?? []).map((binding) => {
+            const source = reviewSourcesById.get(binding.sourceId)
+            const lines = [
+              `source: ${binding.sourceId}`,
+              `kind: ${binding.assetKind} · ${binding.reviewState} · ${binding.sourceKind}`,
+              `namespace: ${binding.atlasNamespaceRef}`,
+              binding.sourceScreenId ? `source screen: ${binding.sourceScreenId}` : null,
+              binding.voiceContext?.headline ? `headline: ${binding.voiceContext.headline}` : null,
+              binding.voiceContext?.body ? `body: ${binding.voiceContext.body}` : null,
+              binding.mascot ? `mascot: ${binding.mascot.id} · ${binding.mascot.poseId}` : null,
+              binding.illustration?.alt ? `illustration: ${binding.illustration.alt}` : binding.illustration?.role ? `illustration: ${binding.illustration.role}` : null,
+            ].filter((line): line is string => Boolean(line))
+
+            return {
+              id: `${binding.id}-review-context`,
+              title: 'Brandie review context',
+              subtitle: source ? `${source.packId} · ${binding.reviewState}` : `${binding.sourceId} · ${binding.reviewState}`,
+              lines,
+            }
+          })
           const targets = surface.targetIds.map((targetId): DashboardTargetGroup => {
             const target = targetById.get(targetId)
             const captureKey = `${surface.id}::${scenarioId}::${targetId}`
@@ -352,6 +424,7 @@ function buildAtlasModel(
             id: `${surface.id}-${scenarioId}`,
             title: scenario?.title ?? scenarioId,
             subtitle: scenario ? `${scenario.presetId} · ${scenario.scope}` : scenarioId,
+            reviewContexts,
             targets,
           }
         })
@@ -375,7 +448,7 @@ function buildAtlasModel(
 
   return {
     title: `Atlas Review Dashboard — ${manifest.surfaces.length} surfaces`,
-    summary: `Atlas-backed artifacts grouped by path, surface, scenario, and target for ${manifest.metadata.productName}.`,
+    summary: `Atlas-backed artifacts grouped by path, surface, scenario, and target for ${manifest.metadata.productName}.${manifest.reviewContext?.bindings?.length ? ` Brandie review context is shown as secondary metadata for ${manifest.reviewContext.bindings.length} bound scenario(s).` : ''}`,
     paths,
   }
 }

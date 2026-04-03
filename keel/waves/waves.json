@@ -54,7 +54,7 @@
       "id": "wave-3",
       "name": "Brand-Aware Atlas Diagnostics",
       "goal": "Add a thin Sentinel follow-on wave that can inspect Brandie-backed Atlas review metadata, diagnose integration drift, and optionally expose that context in validation and review output without turning Sentinel into the primary review product.",
-      "status": "in_progress",
+      "status": "done",
       "target": "2026-W31",
       "gates": [
         "wave-2"
@@ -79,7 +79,7 @@
           "name": "Optional review context stays visible but thin",
           "description": "Sentinel can surface Brandie review context where useful without competing with Atlas as the review UI.",
           "date": null,
-          "done": false
+          "done": true
         }
       ]
     }

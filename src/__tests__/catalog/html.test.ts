@@ -61,6 +61,30 @@ describe('catalog html', () => {
     expect(html).toContain('frame-001.png')
     expect(html).toContain('<img src="../artifacts/fitkind/')
     expect(html).toContain('MISSING')
+    expect(html).not.toContain('Brandie review context')
+  })
+
+  it('renders Brandie review context as secondary metadata when Atlas review bindings are present', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-html-'))
+    const outputDir = path.join(dir, 'catalog')
+    const manifest = readJsonFixture<AtlasManifestFixture>(path.join(process.cwd(), 'examples/atlas/manifest.fitkind-brand-aware.v1.json'))
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>(path.join(process.cwd(), 'examples/atlas/session-index.fitkind-brand-aware.v1.json'))
+
+    const captured = sessionIndex.captures.filter((capture) => capture.status === 'captured')
+    for (const capture of captured) {
+      const absolute = path.join(dir, capture.artifactPath)
+      fs.mkdirSync(path.dirname(absolute), { recursive: true })
+      fs.writeFileSync(absolute, '')
+    }
+
+    generateAtlasIndex(outputDir, dir, manifest, sessionIndex)
+
+    const html = fs.readFileSync(path.join(outputDir, 'index.html'), 'utf-8')
+    expect(html).toContain('Brandie review context')
+    expect(html).toContain('fitkind.review-pack')
+    expect(html).toContain('No progress photos yet')
+    expect(html).toContain('Hue inspects an empty progress timeline')
+    expect(html).toContain('MISSING')
   })
 
   it('escapes dynamic Atlas content before writing HTML', () => {

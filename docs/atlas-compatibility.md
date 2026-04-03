@@ -121,6 +121,8 @@ When `reviewContext` is present, Sentinel Doctor classifies the most common mist
 - `Sentinel consumption drift`: Atlas points at a stale `packPath` or `packId`, so Sentinel is consuming the wrong Brandie export
 - `Atlas binding drift`: Atlas binds a surface/scenario to an `atlasNamespaceRef` that the referenced Brandie pack does not export
 
+Sentinel may also surface that review context inside its generated dashboard, but only as secondary audit metadata. Use Atlas as the primary review UI; use Sentinel's dashboard when you need a lightweight proof index or CI-friendly review artifact that keeps screenshots, validation state, and a compact Brandie summary together.
+
 ## Identity Contract
 
 Atlas should author local ids and review paths in colon form:

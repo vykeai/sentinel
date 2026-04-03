@@ -4,7 +4,7 @@
   "description": "Expose Brandie-derived review context in Sentinel only where it materially helps audits and large review sessions, while keeping Atlas as the primary review UI and Brandie as the metadata source.",
   "wave": "wave-3",
   "space": "space-dashboard",
-  "status": "todo",
+  "status": "done",
   "priority": "medium",
   "platform": "all",
   "assignee": null,
@@ -31,12 +31,31 @@
     "replicating the full Atlas dashboard experience",
     "making Brandie metadata mandatory for Sentinel users"
   ],
-  "notes": [],
+  "notes": [
+    {
+      "at": "2026-04-03T11:24:00.000Z",
+      "by": "codex",
+      "text": "Execution started. This slice will add a compact Brandie review-context panel to Atlas-backed Sentinel dashboard output only when reviewContext bindings are present, keeping it secondary to screenshots and absent for products that do not use Brandie metadata."
+    },
+    {
+      "at": "2026-04-03T11:26:00.000Z",
+      "by": "codex",
+      "text": "Completed the optional dashboard slice by rendering compact Brandie review-context panels only for Atlas scenarios with reviewContext bindings, keeping the output secondary to screenshot proof and absent for non-brand-aware manifests. Verification passed: npm test, npm run build, git diff --check. Proof: ~/Desktop/screenshots/sentinel/t-011-dashboard-proof.png."
+    }
+  ],
   "cloudy_run": null,
   "statusHistory": [
     {
       "status": "todo",
       "ts": "2026-04-03T11:15:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-03T11:24:00.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-03T11:26:00.000Z"
     }
   ],
   "attachments": [],
@@ -45,7 +64,7 @@
   "stageHistory": [],
   "recurring": null,
   "createdAt": "2026-04-03T11:15:00.000Z",
-  "updatedAt": "2026-04-03T11:15:00.000Z",
+  "updatedAt": "2026-04-03T11:26:00.000Z",
   "validationOverrides": null,
   "executionMode": null,
   "cloudyTaskGraph": null,
