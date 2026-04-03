@@ -1,0 +1,68 @@
+{
+  "id": "T-002",
+  "title": "Define Atlas adapter types for surface, scenario, path, and capture target",
+  "description": "Replace Sentinel's flat screen assumptions with an explicit adapter boundary that understands Atlas surfaces, scenarios, hierarchical paths, and per-target capture metadata.",
+  "wave": "wave-1",
+  "space": "space-catalog",
+  "status": "done",
+  "priority": "critical",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": ["T-001"],
+  "spec": "S-001",
+  "lane": "lane-atlas-adapter",
+  "surfaceScope": [
+    "src/catalog/types",
+    "src/catalog/adapter boundaries"
+  ],
+  "acceptanceCriteria": [
+    "Sentinel has an explicit Atlas adapter model for surfaces, scenarios, paths, and targets",
+    "The adapter boundary states clearly what Sentinel consumes versus what Atlas owns",
+    "Flat legacy catalog entries can be mapped through the same model without losing migration clarity",
+    "Type definitions and docs no longer imply that a flat screen slug is the only review unit"
+  ],
+  "proofRequirements": [
+    "types and fixtures exist for Atlas-like input",
+    "adapter docs or examples show the mapping"
+  ],
+  "nonGoals": [
+    "owning Atlas manifests directly",
+    "shipping the full capture runner in this task"
+  ],
+  "notes": [
+    {
+      "at": "2026-04-02T21:35:00.000Z",
+      "by": "codex",
+      "text": "Added Atlas-era adapter types for surfaces, scenarios, paths, targets, and entry strategies, plus a legacy catalog adapter that maps flat screen definitions onto the richer model. Documented the migration boundary in the README and added adapter tests."
+    }
+  ],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-02T20:45:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-02T21:27:00.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-02T21:35:00.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-02T20:45:00.000Z",
+  "updatedAt": "2026-04-02T20:45:00.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

@@ -1,0 +1,12 @@
+profile: tool-cli
+platforms: [ios, android, web, api]
+packageManager: npm
+screenshotSlug: sentinel
+
+buildCommands:
+  cli: |
+    npm run build
+
+testCommands:
+  cli: |
+    npm test

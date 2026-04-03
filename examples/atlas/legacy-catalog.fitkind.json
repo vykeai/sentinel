@@ -1,0 +1,34 @@
+{
+  "catalog": {
+    "output": "catalog/",
+    "resize": 1000,
+    "ios18": {
+      "iphone": {
+        "slug": "fitkind-ios",
+        "app_id": "com.fitkind.app"
+      }
+    },
+    "android": {
+      "phone": {
+        "slug": "fitkind-android",
+        "app_ids": {
+          "dev": "com.fitkind.app.dev",
+          "prod": "com.fitkind.app"
+        }
+      }
+    },
+    "screens": [
+      {
+        "slug": "journey-home",
+        "name": "Journey Home",
+        "flow": "sentinel/flows/catalog/journey-home.yaml"
+      },
+      {
+        "slug": "paywall",
+        "name": "Paywall",
+        "flow": "sentinel/flows/catalog/paywall.yaml",
+        "scroll_steps": 1
+      }
+    ]
+  }
+}

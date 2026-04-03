@@ -1,0 +1,38 @@
+sentinel: "1.0"
+project: onlystack
+version: "1.0.0"
+
+platforms:
+  ios:
+    path: ./apps/starter-ios
+    language: swift
+    output:
+      tokens: ./apps/starter-ios/StarterApp/DesignSystem/Tokens/AppTokens.swift
+      strings: ./apps/starter-ios/StarterApp/Resources/Strings.swift
+      flags: ./apps/starter-ios/StarterApp/Core/FeatureFlags.swift
+
+  android:
+    path: ./apps/starter-android
+    language: kotlin
+    output:
+      tokens: ./apps/starter-android/app/src/main/kotlin/com/onlystack/starterapp/design/tokens/AppTokens.kt
+      strings: ./apps/starter-android/app/src/main/res/values/strings-generated.xml
+      flags: ./apps/starter-android/app/src/main/kotlin/com/onlystack/starterapp/core/FeatureFlags.kt
+
+catalog:
+  output: catalog/
+  resize: 1000
+  ios18:
+    iphone:
+      slug: starter-ios
+      app_id: com.onlystack.starterapp.dev
+  ios26:
+    iphone:
+      slug: starter-ios26
+      app_id: com.onlystack.starterapp.dev
+      glossy: true
+  android:
+    phone:
+      slug: starter-android
+      app_id: com.onlystack.starterapp.mock
+  screens: []

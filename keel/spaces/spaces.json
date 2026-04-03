@@ -1,0 +1,29 @@
+{
+  "spaces": [
+    {
+      "id": "space-cli",
+      "name": "CLI",
+      "description": "Command contracts, config loading, backward compatibility, and operator-facing workflow."
+    },
+    {
+      "id": "space-catalog",
+      "name": "Catalog + Capture",
+      "description": "Atlas compatibility, catalog adapters, capture boundaries, and artifact indexing."
+    },
+    {
+      "id": "space-dashboard",
+      "name": "Dashboard",
+      "description": "HTML output, hierarchical grouping, review browsing, and screenshot presentation."
+    },
+    {
+      "id": "space-validation",
+      "name": "Validation",
+      "description": "Expected shots, visual diff, parity, doctor checks, and CI-facing quality gates."
+    },
+    {
+      "id": "space-ecosystem",
+      "name": "Ecosystem",
+      "description": "Migration docs, compatibility with Atlas and products, and sample-config verification."
+    }
+  ]
+}

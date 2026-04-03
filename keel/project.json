@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "slug": "sentinel",
+  "name": "Sentinel",
+  "path": "/Users/luke/dev/onlytools/sentinel",
+  "stack": {
+    "platforms": ["ios", "android", "web", "api"],
+    "languages": ["typescript"],
+    "frameworks": ["node", "simemu"]
+  },
+  "integrations": {
+    "cloudy": false,
+    "sentinel": false,
+    "simemu": true,
+    "runecode": true
+  },
+  "emoji": "🛡️",
+  "color": "#145A50",
+  "tagline": "Cross-platform integrity and review validation layer.",
+  "createdAt": "2026-04-02T20:45:00.000Z",
+  "updatedAt": "2026-04-02T20:45:00.000Z"
+}

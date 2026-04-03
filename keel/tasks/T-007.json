@@ -1,0 +1,73 @@
+{
+  "id": "T-007",
+  "title": "Add doctor checks and migration docs for Atlas transition",
+  "description": "Make Sentinel able to diagnose migration mistakes and explain the Atlas transition path directly instead of leaving compatibility as tribal knowledge.",
+  "wave": "wave-2",
+  "space": "space-ecosystem",
+  "status": "done",
+  "priority": "high",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": ["T-003", "T-006"],
+  "spec": "S-001",
+  "lane": "lane-migration",
+  "surfaceScope": [
+    "doctor",
+    "README and migration docs"
+  ],
+  "acceptanceCriteria": [
+    "Doctor checks can identify common Atlas migration mistakes or stale legacy assumptions",
+    "Migration docs explain what Atlas owns, what Sentinel owns, and how products move between the two",
+    "The docs include a compatibility phase rather than implying immediate replacement",
+    "The resulting guidance is strong enough for FitKind and Sitches adoption work"
+  ],
+  "proofRequirements": [
+    "doctor tests or fixtures cover migration diagnostics",
+    "migration doc exists in repo"
+  ],
+  "nonGoals": [
+    "writing product-specific adoption docs in Sentinel",
+    "creating a new review product"
+  ],
+  "notes": [
+    {
+      "at": "2026-04-03T00:11:38.000Z",
+      "by": "codex",
+      "text": "Execution started for Atlas migration doctoring. The slice will add Atlas-aware doctor checks plus explicit migration guidance for compatibility-phase products."
+    },
+    {
+      "at": "2026-04-03T00:16:09.000Z",
+      "by": "codex",
+      "text": "Completed Atlas migration doctoring by adding doctor --atlas-manifest/--session-index diagnostics, script-wiring checks, explicit migration docs, and fresh proof at ~/Desktop/screenshots/sentinel/atlas-doctor-proof.png."
+    }
+  ],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-02T20:45:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-03T00:11:38.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-03T00:16:09.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-02T20:45:00.000Z",
+  "updatedAt": "2026-04-03T00:16:09.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

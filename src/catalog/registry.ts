@@ -109,6 +109,19 @@ function walkDir(dir: string, root: string, results: string[], depth = 0): void 
   }
 }
 
+export function findScreenFiles(projectRoot: string, singleFile?: string): string[] {
+  if (singleFile) {
+    const rel = singleFile.startsWith(projectRoot)
+      ? relative(projectRoot, singleFile)
+      : singleFile
+    return isScreenFile(singleFile) ? [rel] : []
+  }
+
+  const screenFiles: string[] = []
+  walkDir(projectRoot, projectRoot, screenFiles)
+  return screenFiles
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function scanRegistry(
@@ -117,17 +130,7 @@ export function scanRegistry(
   singleFile?: string,
 ): RegistryScanResult {
   const registeredSlugs = new Set(catalog.screens.map((s) => s.slug))
-
-  let screenFiles: string[]
-  if (singleFile) {
-    const rel = singleFile.startsWith(projectRoot)
-      ? relative(projectRoot, singleFile)
-      : singleFile
-    screenFiles = isScreenFile(singleFile) ? [rel] : []
-  } else {
-    screenFiles = []
-    walkDir(projectRoot, projectRoot, screenFiles)
-  }
+  const screenFiles = findScreenFiles(projectRoot, singleFile)
 
   const unregistered: UnregisteredScreen[] = []
   for (const file of screenFiles) {

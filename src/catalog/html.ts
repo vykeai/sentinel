@@ -1,145 +1,400 @@
 // ─── Catalog HTML Index ─────────────────────────────────────────────────────
-// Generates catalog/index.html — a browsable grid of all screenshots
-// organized by screen, with OS·Device tabs and variant tabs.
+// Generates reviewable HTML for both legacy flat catalogs and Atlas-era
+// surface/scenario/target artifacts.
 
 import fs from 'fs'
 import path from 'path'
-import type { CatalogConfig, CatalogVariant } from './types.js'
-import { buildExpectedShots, activeOSDevicePairs } from './expected.js'
-import { OS_LABELS, DEVICE_LABELS, VARIANT_LABELS } from './types.js'
+import type {
+  CatalogConfig,
+  CatalogPath,
+  CatalogSurface,
+  CatalogVariant,
+} from './types.js'
+import {
+  type AtlasManifestFixture,
+  type AtlasSessionCaptureIndex,
+  validateAtlasFixtureSet,
+  validateAtlasManifestFixture,
+  validateAtlasSessionCaptureIndex,
+} from './atlas-compat.js'
+import { legacyCatalogToSurfaces } from './adapter.js'
+import { buildExpectedShots } from './expected.js'
+import { DEVICE_LABELS, OS_LABELS, VARIANT_LABELS } from './types.js'
 
-export function generateIndex(config: CatalogConfig, projectRoot: string): void {
-  const outputDir = path.resolve(projectRoot, config.output)
-  const shots = buildExpectedShots(config)
+interface DashboardCapture {
+  key: string
+  label: string
+  src?: string
+  status: 'captured' | 'missing' | 'failed'
+}
 
-  // Group shots by screen slug
-  const byScreen = new Map<string, typeof shots>()
-  for (const shot of shots) {
-    const arr = byScreen.get(shot.screen) ?? []
-    arr.push(shot)
-    byScreen.set(shot.screen, arr)
-  }
+interface DashboardTargetGroup {
+  id: string
+  title: string
+  subtitle?: string
+  captures: DashboardCapture[]
+}
 
-  const pairs = activeOSDevicePairs(config)
-  const allVariants = Array.from(new Set(shots.map((s) => s.variant)))
+interface DashboardScenarioGroup {
+  id: string
+  title: string
+  subtitle?: string
+  targets: DashboardTargetGroup[]
+}
 
-  function tabKey(os: string, device: string) { return `${os}::${device}` }
-  function tabLabel(os: string, device: string) {
-    return `${OS_LABELS[os as keyof typeof OS_LABELS] ?? os} ${DEVICE_LABELS[device as keyof typeof DEVICE_LABELS] ?? device}`
-  }
+interface DashboardSurfaceGroup {
+  id: string
+  title: string
+  subtitle?: string
+  scenarios: DashboardScenarioGroup[]
+}
 
-  const screenCards = Array.from(byScreen.entries()).map(([slug, screenShots]) => {
-    const title = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+interface DashboardPathGroup {
+  id: string
+  title: string
+  subtitle?: string
+  surfaces: DashboardSurfaceGroup[]
+}
 
-    // Build columns per OS+Device pair
-    const cols = pairs.map(({ os, device }, i) => {
-      const key = tabKey(os, device)
-      const variantGroups = allVariants.map((variant) => {
-        const matchingShots = screenShots
-          .filter((s) => s.os === os && s.device === device && s.variant === variant)
-          .sort((a, b) => a.scroll - b.scroll)
+interface DashboardModel {
+  title: string
+  summary: string
+  paths: DashboardPathGroup[]
+}
 
-        if (matchingShots.length === 0) return ''
-        const imgs = matchingShots.map((s) =>
-          `<img src="${s.filename}" alt="${slug} ${tabLabel(os, device)} ${variant} scroll${s.scroll}" loading="lazy"
-               class="shot" onerror="this.style.opacity='0.15'">`
-        ).join('\n')
-        return `<div class="variant-group" data-variant="${variant}">${imgs}</div>`
-      }).join('\n')
+function formatPath(pathValue: CatalogPath): string {
+  if (pathValue.display) return pathValue.display
+  return pathValue.segments
+    .map((segment) => segment.label ?? segment.id)
+    .join(' / ')
+}
 
-      return `<div class="osd-col${i === 0 ? ' visible' : ''}" data-key="${key}">${variantGroups}</div>`
-    }).join('\n')
+function titleFromId(value: string): string {
+  return value
+    .split(/[.:-]/g)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(' ')
+}
 
-    const osdTabs = pairs.map(({ os, device }, i) =>
-      `<button class="tab${i === 0 ? ' active' : ''}" data-key="${tabKey(os, device)}">${tabLabel(os, device)}</button>`
-    ).join('')
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
 
-    const varTabs = allVariants.map((v, i) =>
-      `<button class="vtab${i === 0 ? ' active' : ''}" data-variant="${v}">${VARIANT_LABELS[v]}</button>`
-    ).join('')
+function toDomId(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'section'
+}
 
-    return `
-<div class="screen-card" id="${slug}">
-  <h2 class="screen-title"><a href="#${slug}">${title}</a></h2>
-  <div class="tab-row">${osdTabs}</div>
-  <div class="tab-row">${varTabs}</div>
-  <div class="img-grid">${cols}</div>
+function renderCapture(capture: DashboardCapture): string {
+  const statusClass = capture.status === 'captured'
+    ? 'captured'
+    : capture.status === 'failed'
+      ? 'failed'
+      : 'missing'
+
+  const preview = capture.src
+    ? `<img src="${escapeHtml(capture.src)}" alt="${escapeHtml(capture.label)}" loading="lazy" class="shot">`
+    : `<div class="shot placeholder">${capture.status.toUpperCase()}</div>`
+
+  return `
+<div class="capture ${statusClass}">
+  <div class="capture-label">${escapeHtml(capture.label)}</div>
+  ${preview}
 </div>`
-  }).join('\n')
+}
 
+function renderTarget(target: DashboardTargetGroup): string {
+  return `
+<div class="target-card" id="${toDomId(target.id)}">
+  <div class="target-header">
+    <h5>${escapeHtml(target.title)}</h5>
+    ${target.subtitle ? `<div class="meta">${escapeHtml(target.subtitle)}</div>` : ''}
+  </div>
+  <div class="capture-grid">
+    ${target.captures.map(renderCapture).join('\n')}
+  </div>
+</div>`
+}
+
+function renderScenario(scenario: DashboardScenarioGroup): string {
+  return `
+<section class="scenario-card" id="${toDomId(scenario.id)}">
+  <h4>${escapeHtml(scenario.title)}</h4>
+  ${scenario.subtitle ? `<div class="meta">${escapeHtml(scenario.subtitle)}</div>` : ''}
+  <div class="target-grid">
+    ${scenario.targets.map(renderTarget).join('\n')}
+  </div>
+</section>`
+}
+
+function renderSurface(surface: DashboardSurfaceGroup): string {
+  return `
+<section class="surface-card" id="${toDomId(surface.id)}">
+  <h3>${escapeHtml(surface.title)}</h3>
+  ${surface.subtitle ? `<div class="meta">${escapeHtml(surface.subtitle)}</div>` : ''}
+  <div class="scenario-stack">
+    ${surface.scenarios.map(renderScenario).join('\n')}
+  </div>
+</section>`
+}
+
+function renderPathGroup(pathGroup: DashboardPathGroup): string {
+  return `
+<section class="path-card" id="${toDomId(pathGroup.id)}">
+  <h2>${escapeHtml(pathGroup.title)}</h2>
+  ${pathGroup.subtitle ? `<div class="meta">${escapeHtml(pathGroup.subtitle)}</div>` : ''}
+  <div class="surface-stack">
+    ${pathGroup.surfaces.map(renderSurface).join('\n')}
+  </div>
+</section>`
+}
+
+function renderDashboard(model: DashboardModel): string {
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Screen Catalog — ${byScreen.size} screens</title>
+<title>${escapeHtml(model.title)}</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 2rem; }
-  h1 { font-size: 1.3rem; font-weight: 600; color: #fff; margin-bottom: 2rem; opacity: 0.5; letter-spacing: 0.02em; }
-  .screen-card { margin-bottom: 3rem; border: 1px solid #1e1e1e; border-radius: 12px; padding: 1.5rem; background: #111; }
-  .screen-title { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 1rem; }
-  .screen-title a { color: inherit; text-decoration: none; }
-  .screen-title a:hover { text-decoration: underline; }
-  .tab-row { display: flex; gap: 0.35rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
-  .tab, .vtab {
-    background: #181818; border: 1px solid #2a2a2a; color: #888; border-radius: 6px;
-    padding: 0.25rem 0.65rem; font-size: 0.75rem; cursor: pointer; transition: all 0.12s;
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a0a; color: #ececec; padding: 2rem; }
+  h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 0.35rem; }
+  h2 { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.35rem; }
+  h3 { font-size: 1rem; font-weight: 650; color: #fff; margin-bottom: 0.35rem; }
+  h4 { font-size: 0.92rem; font-weight: 650; color: #fff; margin-bottom: 0.3rem; }
+  h5 { font-size: 0.82rem; font-weight: 650; color: #fff; }
+  p, .meta { color: #a6a6a6; line-height: 1.4; }
+  .summary { margin-bottom: 1.75rem; color: #c5c5c5; }
+  .path-card, .surface-card, .scenario-card, .target-card {
+    border: 1px solid #1f1f1f;
+    border-radius: 14px;
+    background: #111;
   }
-  .tab.active { background: #1e2030; border-color: #445; color: #aac; }
-  .vtab.active { background: #201e18; border-color: #544; color: #cba; }
-  .img-grid { display: flex; gap: 1rem; align-items: flex-start; overflow-x: auto; padding-bottom: 0.5rem; margin-top: 0.75rem; }
-  .osd-col { display: none; flex-direction: column; gap: 0.5rem; }
-  .osd-col.visible { display: flex; }
-  .variant-group { display: none; flex-direction: row; gap: 0.5rem; }
-  .variant-group.visible { display: flex; }
-  .shot { width: 160px; border-radius: 10px; border: 1px solid #222; display: block; background: #1a1a1a; }
+  .path-card { padding: 1.2rem; margin-bottom: 1.25rem; }
+  .surface-card { padding: 1rem; margin-top: 0.9rem; background: #131313; }
+  .scenario-card { padding: 0.9rem; margin-top: 0.8rem; background: #151515; }
+  .target-card { padding: 0.8rem; background: #171717; }
+  .surface-stack, .scenario-stack { display: flex; flex-direction: column; gap: 0.8rem; }
+  .target-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.8rem;
+    margin-top: 0.7rem;
+  }
+  .capture-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.65rem;
+    margin-top: 0.7rem;
+  }
+  .capture { display: flex; flex-direction: column; gap: 0.35rem; }
+  .capture-label { font-size: 0.72rem; color: #b5b5b5; }
+  .shot {
+    width: 100%;
+    min-height: 180px;
+    object-fit: contain;
+    border-radius: 10px;
+    border: 1px solid #232323;
+    background: #1b1b1b;
+  }
+  .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+  }
+  .capture.missing .placeholder { color: #d6b86d; }
+  .capture.failed .placeholder { color: #e88d8d; }
+  .meta { font-size: 0.78rem; }
 </style>
 </head>
 <body>
-<h1>Screen Catalog &mdash; ${byScreen.size} screens &mdash; ${shots.length} shots</h1>
-${screenCards}
-<script>
-(function() {
-  document.querySelectorAll('.screen-card').forEach(function(card) {
-    var activeKey     = card.querySelector('.tab.active')?.dataset.key
-    var activeVariant = card.querySelector('.vtab.active')?.dataset.variant
-
-    function refresh() {
-      card.querySelectorAll('.osd-col').forEach(function(col) {
-        var show = col.dataset.key === activeKey
-        col.classList.toggle('visible', show)
-      })
-      card.querySelectorAll('.variant-group').forEach(function(grp) {
-        var col = grp.closest('.osd-col')
-        grp.classList.toggle('visible', col?.classList.contains('visible') && grp.dataset.variant === activeVariant)
-      })
-    }
-
-    card.querySelectorAll('.tab').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        card.querySelectorAll('.tab').forEach(function(b) { b.classList.remove('active') })
-        btn.classList.add('active')
-        activeKey = btn.dataset.key
-        refresh()
-      })
-    })
-
-    card.querySelectorAll('.vtab').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        card.querySelectorAll('.vtab').forEach(function(b) { b.classList.remove('active') })
-        btn.classList.add('active')
-        activeVariant = btn.dataset.variant
-        refresh()
-      })
-    })
-
-    refresh()
-  })
-})()
-</script>
+<h1>${escapeHtml(model.title)}</h1>
+<p class="summary">${escapeHtml(model.summary)}</p>
+${model.paths.map(renderPathGroup).join('\n')}
 </body>
 </html>`
 
-  fs.writeFileSync(path.join(outputDir, 'index.html'), html, 'utf-8')
+  return html
+}
+
+function buildLegacyModel(config: CatalogConfig, projectRoot: string): DashboardModel {
+  const outputDir = path.resolve(projectRoot, config.output)
+  const shots = buildExpectedShots(config)
+  const shotsByScreen = new Map<string, typeof shots>()
+  for (const shot of shots) {
+    const existing = shotsByScreen.get(shot.screen) ?? []
+    existing.push(shot)
+    shotsByScreen.set(shot.screen, existing)
+  }
+
+  const paths = legacyCatalogToSurfaces(config).map((surface): DashboardPathGroup => {
+    const legacyShots = shotsByScreen.get(surface.id) ?? []
+    const targetMap = new Map<string, DashboardTargetGroup>()
+
+    for (const shot of legacyShots) {
+      const key = `${shot.os}::${shot.device}`
+      const target = targetMap.get(key) ?? {
+        id: `${surface.id}-${key}`,
+        title: `${OS_LABELS[shot.os]} ${DEVICE_LABELS[shot.device]}`,
+        subtitle: `${shot.os} · ${shot.device}`,
+        captures: [],
+      }
+
+      const filePath = path.join(outputDir, shot.filename)
+      target.captures.push({
+        key: shot.filename,
+        label: `${VARIANT_LABELS[shot.variant]}${shot.scroll > 1 ? ` · Scroll ${shot.scroll}` : ''}`,
+        src: fs.existsSync(filePath) ? shot.filename : undefined,
+        status: fs.existsSync(filePath) ? 'captured' : 'missing',
+      })
+      targetMap.set(key, target)
+    }
+
+    const scenario = surface.scenarios[0]
+    return {
+      id: `path-${surface.id}`,
+      title: surface.name ?? titleFromId(surface.id),
+      subtitle: formatPath(surface.path),
+      surfaces: [
+        {
+          id: surface.id,
+          title: surface.name ?? titleFromId(surface.id),
+          subtitle: `${surface.kind} · legacy catalog surface`,
+          scenarios: [
+            {
+              id: `${surface.id}-${scenario?.id ?? 'default'}`,
+              title: scenario?.name ?? 'Default',
+              subtitle: scenario?.id ?? 'default',
+              targets: Array.from(targetMap.values()),
+            },
+          ],
+        },
+      ],
+    }
+  })
+
+  return {
+    title: `Screen Catalog — ${paths.length} legacy surfaces`,
+    summary: 'Legacy flat catalogs still render as hierarchical path → surface → scenario → target groups during Atlas migration.',
+    paths,
+  }
+}
+
+function buildAtlasModel(
+  manifest: AtlasManifestFixture,
+  sessionIndex: AtlasSessionCaptureIndex,
+  projectRoot: string,
+  outputDir: string,
+): DashboardModel {
+  const pathById = new Map(manifest.paths.map((entry) => [entry.id, entry]))
+  const scenarioById = new Map(manifest.scenarios.map((entry) => [entry.id, entry]))
+  const targetById = new Map(manifest.targets.map((entry) => [entry.id, entry]))
+
+  const capturesByKey = new Map<string, typeof sessionIndex.captures>()
+  for (const capture of sessionIndex.captures) {
+    const key = `${capture.surfaceId}::${capture.scenarioId}::${capture.targetId}`
+    const existing = capturesByKey.get(key) ?? []
+    existing.push(capture)
+    capturesByKey.set(key, existing)
+  }
+
+  const paths = manifest.paths.map((pathEntry): DashboardPathGroup => {
+    const surfaces = manifest.surfaces
+      .filter((surface) => surface.pathId === pathEntry.id)
+      .map((surface): DashboardSurfaceGroup => {
+        const scenarios = surface.scenarioIds.map((scenarioId): DashboardScenarioGroup => {
+          const scenario = scenarioById.get(scenarioId)
+          const targets = surface.targetIds.map((targetId): DashboardTargetGroup => {
+            const target = targetById.get(targetId)
+            const captureKey = `${surface.id}::${scenarioId}::${targetId}`
+            const captures = capturesByKey.get(captureKey) ?? []
+            const dashboardCaptures: DashboardCapture[] = captures.length > 0
+              ? captures.map((capture) => {
+                  const absolute = path.resolve(projectRoot, capture.artifactPath)
+                  return {
+                    key: capture.artifactPath,
+                    label: `${capture.artifactKind} · ${capture.fileName}`,
+                    src: capture.status === 'captured' && fs.existsSync(absolute)
+                      ? path.relative(outputDir, absolute).replaceAll(path.sep, '/')
+                      : undefined,
+                    status: capture.status,
+                  }
+                })
+              : [{
+                  key: `${surface.id}-${scenarioId}-${targetId}-missing`,
+                  label: 'No capture record',
+                  status: 'missing',
+                }]
+
+            return {
+              id: `${surface.id}-${targetId}`,
+              title: target?.deviceName ?? targetId,
+              subtitle: target
+                ? `${target.platform} · ${target.deviceClass} · ${target.appearance} · ${target.locale}${target.variant ? ` · ${target.variant}` : ''}`
+                : targetId,
+              captures: dashboardCaptures,
+            }
+          })
+
+          return {
+            id: `${surface.id}-${scenarioId}`,
+            title: scenario?.title ?? scenarioId,
+            subtitle: scenario ? `${scenario.presetId} · ${scenario.scope}` : scenarioId,
+            targets,
+          }
+        })
+
+        return {
+          id: surface.id,
+          title: surface.title,
+          subtitle: `${surface.kind} · ${surface.id}`,
+          scenarios,
+        }
+      })
+
+    const labels = pathEntry.segments.map((segment) => segment.label ?? segment.value).join(' / ')
+    return {
+      id: pathEntry.id,
+      title: pathEntry.title,
+      subtitle: `${pathEntry.kind} · ${labels}`,
+      surfaces,
+    }
+  })
+
+  return {
+    title: `Atlas Review Dashboard — ${manifest.surfaces.length} surfaces`,
+    summary: `Atlas-backed artifacts grouped by path, surface, scenario, and target for ${manifest.metadata.productName}.`,
+    paths,
+  }
+}
+
+export function generateIndex(config: CatalogConfig, projectRoot: string): void {
+  const outputDir = path.resolve(projectRoot, config.output)
+  fs.mkdirSync(outputDir, { recursive: true })
+  fs.writeFileSync(path.join(outputDir, 'index.html'), renderDashboard(buildLegacyModel(config, projectRoot)), 'utf-8')
+}
+
+export function generateAtlasIndex(
+  outputDir: string,
+  projectRoot: string,
+  manifest: AtlasManifestFixture,
+  sessionIndex: AtlasSessionCaptureIndex,
+): void {
+  validateAtlasManifestFixture(manifest, 'atlas manifest')
+  validateAtlasSessionCaptureIndex(sessionIndex, 'atlas session index')
+  validateAtlasFixtureSet(manifest, sessionIndex, 'atlas fixture set')
+  fs.mkdirSync(outputDir, { recursive: true })
+  fs.writeFileSync(path.join(outputDir, 'index.html'), renderDashboard(buildAtlasModel(manifest, sessionIndex, projectRoot, outputDir)), 'utf-8')
 }

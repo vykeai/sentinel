@@ -1,0 +1,24 @@
+{
+  "edges": [
+    { "from": "S-001", "to": "T-001", "type": "specifies" },
+    { "from": "S-001", "to": "T-002", "type": "specifies" },
+    { "from": "S-001", "to": "T-003", "type": "specifies" },
+    { "from": "S-001", "to": "T-004", "type": "specifies" },
+    { "from": "S-001", "to": "T-005", "type": "specifies" },
+    { "from": "S-001", "to": "T-006", "type": "specifies" },
+    { "from": "S-001", "to": "T-007", "type": "specifies" },
+    { "from": "S-001", "to": "T-008", "type": "specifies" },
+    { "from": "T-002", "to": "T-001", "type": "depends_on" },
+    { "from": "T-003", "to": "T-002", "type": "depends_on" },
+    { "from": "T-004", "to": "T-002", "type": "depends_on" },
+    { "from": "T-005", "to": "T-002", "type": "depends_on" },
+    { "from": "T-005", "to": "T-004", "type": "depends_on" },
+    { "from": "T-006", "to": "T-002", "type": "depends_on" },
+    { "from": "T-006", "to": "T-005", "type": "depends_on" },
+    { "from": "T-007", "to": "T-003", "type": "depends_on" },
+    { "from": "T-007", "to": "T-006", "type": "depends_on" },
+    { "from": "T-008", "to": "T-001", "type": "depends_on" },
+    { "from": "T-008", "to": "T-002", "type": "depends_on" },
+    { "from": "T-008", "to": "T-006", "type": "depends_on" }
+  ]
+}

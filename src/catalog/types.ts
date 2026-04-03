@@ -1,5 +1,6 @@
 // ─── Catalog Types ─────────────────────────────────────────────────────────────
-// These map to the `catalog:` section in sentinel.yaml.
+// These map to the `catalog:` section in sentinel.yaml today, while also defining
+// the Atlas-era adapter boundary Sentinel consumes internally.
 
 // OS version keys — what OS the screenshot was taken on
 export type CatalogOSKey = 'ios18' | 'ios26' | 'android' | 'watchos' | 'tvos'
@@ -13,7 +14,8 @@ export type CatalogVariant = 'light' | 'dark' | 'glossy-light' | 'glossy-dark'
 // Config for a single device on a single OS
 export interface CatalogDeviceConfig {
   slug: string        // simemu slug for this device (e.g. "fitkind-ios", "fitkind-ipad")
-  app_id: string      // bundle ID / Android package (e.g. "com.fitkind.app")
+  app_id?: string     // default bundle ID / Android package (e.g. "com.fitkind.app")
+  app_ids?: Record<string, string> // named app variants, e.g. { dev: "app.fitkind.dev", prod: "app.fitkind" }
   glossy?: boolean    // ios26 only — capture glossy-light + glossy-dark variants too
 }
 
@@ -36,14 +38,92 @@ export interface CatalogConfig {
   android?: CatalogOSConfig
   watchos?: CatalogOSConfig
   tvos?: CatalogOSConfig
-  screens: CatalogScreen[]
+  screens: CatalogScreen[] // legacy flat contract; Atlas surfaces map through the adapter types below
+}
+
+// ─── Atlas adapter boundary ──────────────────────────────────────────────────
+
+export type CatalogSurfaceKind =
+  | 'screen'
+  | 'modal'
+  | 'sheet'
+  | 'alert'
+  | 'overlay'
+  | 'paywall'
+  | 'admin-surface'
+  | 'widget'
+
+export type CatalogPathSegmentKind =
+  | 'stack'
+  | 'tab'
+  | 'screen'
+  | 'modal'
+  | 'sheet'
+  | 'alert'
+  | 'overlay'
+  | 'menu'
+  | 'surface'
+  | 'admin'
+
+export interface CatalogPathSegment {
+  kind: CatalogPathSegmentKind
+  id: string
+  label?: string
+}
+
+export interface CatalogPath {
+  segments: CatalogPathSegment[]
+  display?: string
+}
+
+export type CatalogEntryStrategy =
+  | 'launch_args'
+  | 'deeplink'
+  | 'maestro_flow'
+  | 'manual_upload'
+
+export interface CatalogEntryDefinition {
+  strategy: CatalogEntryStrategy
+  flow?: string
+  deeplink?: string
+  args?: string[]
+}
+
+export interface CatalogCaptureTarget {
+  os: CatalogOSKey
+  device: CatalogDeviceType
+  variant?: CatalogVariant
+  appVariant?: string
+}
+
+export interface CatalogLegacyScreenBinding {
+  slug: string
+  flow?: string
+  scroll_steps?: number
+}
+
+export interface CatalogSurfaceScenario {
+  id: string
+  name?: string
+  entry: CatalogEntryDefinition
+  targets?: CatalogCaptureTarget[]
+  legacy?: CatalogLegacyScreenBinding
+}
+
+export interface CatalogSurface {
+  id: string
+  name?: string
+  kind: CatalogSurfaceKind
+  path: CatalogPath
+  scenarios: CatalogSurfaceScenario[]
+  legacy?: CatalogLegacyScreenBinding
 }
 
 // ─── Internal types ──────────────────────────────────────────────────────────
 
 export interface ExpectedShot {
   filename: string          // e.g. "sign-in-ios18-iphone-light.png"
-  screen: string            // screen slug
+  screen: string            // legacy screen slug compatibility field
   os: CatalogOSKey
   device: CatalogDeviceType
   variant: CatalogVariant

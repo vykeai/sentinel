@@ -9,6 +9,7 @@ import chalk from 'chalk'
 import type {
   CatalogConfig, CatalogOSKey, CatalogDeviceType, CatalogVariant, CaptureResult, ExpectedShot,
 } from './types.js'
+import { resolveCatalogAppId } from './app-id.js'
 import { buildExpectedShots } from './expected.js'
 
 // iOS logical point swipe — scroll down (from bottom to top of viewport)
@@ -48,6 +49,7 @@ export interface CaptureOptions {
   osFilter?: CatalogOSKey
   deviceFilter?: CatalogDeviceType
   variantFilter?: CatalogVariant
+  appVariant?: string
   skipExisting?: boolean
 }
 
@@ -87,6 +89,15 @@ export async function runCapture(
 
     console.log(chalk.dim(`\n  ▸ ${screenSlug} / ${os} / ${device}`))
 
+    const appSelection = resolveCatalogAppId(deviceCfg, opts.appVariant)
+    if (!appSelection.appId) {
+      console.log(chalk.red(`    ✗  ${appSelection.error}`))
+      for (const shot of groupShots) {
+        results.push({ shot, success: false, error: appSelection.error ?? 'No app_id configured' })
+      }
+      continue
+    }
+
     // Skip screens with no flow — use catalog:upload instead
     if (!screen.flow) {
       console.log(chalk.dim(`    ○  no flow defined — use: sentinel catalog:upload`))
@@ -95,6 +106,18 @@ export async function runCapture(
       }
       continue
     }
+
+    simemu(projectRoot, 'terminate', simSlug, appSelection.appId)
+    const launched = simemu(projectRoot, 'launch', simSlug, appSelection.appId)
+    if (!launched) {
+      console.log(chalk.red(`    ✗  Failed to launch ${appSelection.appId}`))
+      for (const shot of groupShots) {
+        results.push({ shot, success: false, error: `Failed to launch ${appSelection.appId}` })
+      }
+      continue
+    }
+    console.log(chalk.dim(`    ○  app ${appSelection.appId}${appSelection.variant && appSelection.variant !== 'default' ? ` (${appSelection.variant})` : ''}`))
+    spawnSync('sleep', ['1'])
 
     const flowPath = path.resolve(projectRoot, screen.flow)
     if (!fs.existsSync(flowPath)) {

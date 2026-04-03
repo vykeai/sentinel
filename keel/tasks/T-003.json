@@ -1,0 +1,73 @@
+{
+  "id": "T-003",
+  "title": "Define atlas import, export, and migrate CLI contracts with fixtures",
+  "description": "Add the CLI-level migration story for Atlas and legacy catalogs so Sentinel can act as a compatibility layer instead of forcing a flag-day switch.",
+  "wave": "wave-1",
+  "space": "space-cli",
+  "status": "done",
+  "priority": "high",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": ["T-002"],
+  "spec": "S-001",
+  "lane": "lane-migration",
+  "surfaceScope": [
+    "src/cli/",
+    "fixtures and docs"
+  ],
+  "acceptanceCriteria": [
+    "Sentinel has a documented CLI contract for importing, exporting, or migrating Atlas-related catalog data",
+    "Fixtures cover at least one Atlas-style and one legacy catalog example",
+    "The migration contract is explicit about what is transformed, what is preserved, and what remains Atlas-owned",
+    "Help and docs read like a compatibility layer rather than a product-specific one-off"
+  ],
+  "proofRequirements": [
+    "CLI docs or tests cover the command contract",
+    "sample fixtures exist for Atlas and legacy paths"
+  ],
+  "nonGoals": [
+    "fully implementing Atlas itself",
+    "breaking existing sentinel catalog commands immediately"
+  ],
+  "notes": [
+    {
+      "at": "2026-04-03T00:20:00.000Z",
+      "by": "codex",
+      "text": "Execution started for the Atlas migration CLI contract. This slice adds import/export/migrate command surfaces, fixtures, and docs without forcing a flag-day migration."
+    },
+    {
+      "at": "2026-04-03T00:32:00.000Z",
+      "by": "codex",
+      "text": "Completed the Atlas import/export/migrate compatibility contract with CLI command surfaces, legacy and Atlas example fixtures, and migration docs that state clearly what Sentinel transforms, preserves, and leaves Atlas-owned."
+    }
+  ],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-02T20:45:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-03T00:20:00.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-03T00:32:00.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-02T20:45:00.000Z",
+  "updatedAt": "2026-04-02T20:45:00.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

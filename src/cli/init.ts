@@ -25,7 +25,7 @@ export async function initProject(projectName: string): Promise<void> {
         language: 'typescript',
         framework: 'nestjs',
       },
-      apple: {
+      ios: {
         path: './apple',
         language: 'swift',
         output: {
@@ -34,7 +34,7 @@ export async function initProject(projectName: string): Promise<void> {
           flags:   `./apple/${capitalize(projectName)}/Core/FeatureFlags.swift`,
         },
       },
-      google: {
+      android: {
         path: './google',
         language: 'kotlin',
         output: {

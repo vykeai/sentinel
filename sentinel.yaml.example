@@ -1,13 +1,15 @@
 # sentinel.yaml — place at the repo root of your project
 #
-# Platform key names must be one of: api | apple | google | web | web-admin | desktop
-# These exact keys are how sentinel identifies each platform internally.
+# Preferred platform key names are: api | ios | android | web | web-admin | desktop
+# Compatibility aliases: apple -> ios, google -> android
+# Sentinel normalizes ios -> apple and android -> google internally for now.
 #
 # Commands:
 #   sentinel schema:validate  — validate schemas, check staleness, warn on drift
 #   sentinel schema:generate  — generate tokens, strings, flags, models for all platforms
 #   sentinel mock:generate    — generate MockURLProtocol.swift + MockDispatcher.kt
 #   sentinel mock:validate    — validate all fixture JSON against endpoint schemas
+#   sentinel doctor           — verify install/config/mock wiring and normalize scripts with --fix
 #   sentinel all              — validate → generate → mock:generate
 
 sentinel: "1.0"
@@ -18,7 +20,7 @@ version: "1.0.0"
 # location: ./sentinel
 
 platforms:
-  apple:
+  ios:
     path: apple/
     language: swift
     output:
@@ -30,7 +32,7 @@ platforms:
       # mock:generate writes MockURLProtocol.swift here (wrapped in #if DEBUG)
       mock:      apple/MyApp/Core/Network/MockURLProtocol.swift
 
-  google:
+  android:
     path: google/
     language: kotlin
     output:

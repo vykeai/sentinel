@@ -16,7 +16,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs'
-import { join, dirname, basename, relative, sep } from 'path'
+import { join, dirname, basename, relative, resolve, sep } from 'path'
 import chalk from 'chalk'
 import { findConfigFile, loadConfig } from '../config/loader.js'
 import { generateAll } from '../schema/index.js'
@@ -28,7 +28,9 @@ import { checkMockIntegration, findFixturePathCandidates } from '../mock/integra
 import { runDoctorCheck } from '../doctor/check.js'
 import { buildFeatureMatrix, printMatrix } from '../contracts/feature-matrix.js'
 import { formatWarningSummary } from './warnings.js'
+import { cmdAtlasExport, cmdAtlasImport, cmdAtlasMigrate } from './atlas.js'
 import type { PlatformKey, ResolvedConfig } from '../config/types.js'
+import type { AtlasManifestFixture, AtlasSessionCaptureIndex } from '../catalog/atlas-compat.js'
 
 // ---------------------------------------------------------------------------
 // Schema loading
@@ -780,7 +782,14 @@ function cmdDoctor(): boolean {
   const projectRoot = configPath ? dirname(configPath) : process.cwd()
   const jsonMode = process.argv.includes('--json')
   const fixMode = process.argv.includes('--fix')
-  const result = runDoctorCheck(projectRoot, SENTINEL_PACKAGE_NAME, { fix: fixMode })
+  const args = process.argv.slice(3)
+  const atlasManifestPath = args.find((_, i) => args[i - 1] === '--atlas-manifest')
+  const sessionIndexPath = args.find((_, i) => args[i - 1] === '--session-index')
+  const result = runDoctorCheck(projectRoot, SENTINEL_PACKAGE_NAME, {
+    fix: fixMode,
+    atlasManifestPath,
+    sessionIndexPath,
+  })
 
   if (jsonMode) {
     process.stdout.write(JSON.stringify(result, null, 2) + '\n')
@@ -916,6 +925,52 @@ async function cmdCatalogCapture(): Promise<void> {
 }
 
 async function cmdCatalogValidate(): Promise<void> {
+  const args = process.argv.slice(3)
+  const atlasManifestPath = args.find((_, i) => args[i - 1] === '--atlas-manifest')
+  const sessionIndexPath = args.find((_, i) => args[i - 1] === '--session-index')
+
+  if (atlasManifestPath) {
+    const atlasCompat = await import('../catalog/atlas-compat.js')
+    const { validateAtlasCatalog } = await import('../catalog/atlas-validation.js')
+    const manifest = atlasCompat.readJsonFixture<AtlasManifestFixture>(atlasManifestPath)
+    const sessionIndex: AtlasSessionCaptureIndex = sessionIndexPath
+      ? atlasCompat.readJsonFixture<AtlasSessionCaptureIndex>(sessionIndexPath)
+      : {
+          schemaVersion: atlasCompat.ATLAS_SESSION_INDEX_VERSION as AtlasSessionCaptureIndex['schemaVersion'],
+          manifestPath: atlasManifestPath,
+          captures: [],
+        }
+    const configPath = findConfigFile(process.cwd())
+    const config = configPath ? loadConfig(configPath) : null
+    const projectRoot = config?.projectRoot ?? process.cwd()
+    const result = validateAtlasCatalog(manifest, sessionIndex, projectRoot)
+
+    console.log(`\n  Atlas catalog: ${result.present}/${result.expected} expected captures present`)
+    console.log(`  Diff units: ${result.comparisonUnits.filter((unit) => unit.exists).length} renderable screenshot artifact(s)`)
+    console.log(`  Parity pairs: ${result.parityPairs.length}`)
+
+    if (!result.passed) {
+      const grouped = new Map<string, string[]>()
+      for (const issue of result.issues) {
+        const existing = grouped.get(issue.kind) ?? []
+        existing.push(issue.message)
+        grouped.set(issue.kind, existing)
+      }
+
+      for (const [kind, messages] of grouped.entries()) {
+        console.log(chalk.red(`\n  ${kind} (${messages.length}):`))
+        for (const message of messages) {
+          console.log(`    ✗  ${message}`)
+        }
+      }
+      console.log(`\n  Run: sentinel catalog:index --atlas-manifest ${atlasManifestPath}${sessionIndexPath ? ` --session-index ${sessionIndexPath}` : ''}`)
+      process.exit(1)
+    }
+
+    console.log(chalk.green('  ✓  All Atlas screenshot expectations are satisfied'))
+    return
+  }
+
   const { validateCatalog } = await import('../catalog/validate.js')
   const config = loadConfig()
   if (!config.catalog) {
@@ -939,6 +994,47 @@ async function cmdCatalogValidate(): Promise<void> {
 }
 
 async function cmdCatalogIndex(): Promise<void> {
+  const args = process.argv.slice(3)
+  const atlasManifestPath = args.find((_, i) => args[i - 1] === '--atlas-manifest')
+  const sessionIndexPath = args.find((_, i) => args[i - 1] === '--session-index')
+  const outputDirFlag = args.find((_, i) => args[i - 1] === '--output-dir')
+
+  if (atlasManifestPath) {
+    const { generateAtlasIndex } = await import('../catalog/html.js')
+    const atlasCompat = await import('../catalog/atlas-compat.js')
+    const readJsonFixture: typeof atlasCompat.readJsonFixture = atlasCompat.readJsonFixture
+    const validateAtlasManifestFixture: typeof atlasCompat.validateAtlasManifestFixture = atlasCompat.validateAtlasManifestFixture
+    const validateAtlasSessionCaptureIndex: typeof atlasCompat.validateAtlasSessionCaptureIndex = atlasCompat.validateAtlasSessionCaptureIndex
+    const validateAtlasFixtureSet: typeof atlasCompat.validateAtlasFixtureSet = atlasCompat.validateAtlasFixtureSet
+
+    const manifest = readJsonFixture<AtlasManifestFixture>(atlasManifestPath)
+    validateAtlasManifestFixture(manifest, atlasManifestPath)
+
+    const sessionIndex: AtlasSessionCaptureIndex = sessionIndexPath
+      ? readJsonFixture<AtlasSessionCaptureIndex>(sessionIndexPath)
+      : {
+          schemaVersion: atlasCompat.ATLAS_SESSION_INDEX_VERSION as AtlasSessionCaptureIndex['schemaVersion'],
+          manifestPath: atlasManifestPath,
+          captures: [],
+        }
+
+    validateAtlasSessionCaptureIndex(sessionIndex, sessionIndexPath ?? 'generated empty atlas session index')
+    validateAtlasFixtureSet(manifest, sessionIndex, 'catalog:index atlas input')
+
+    const configPath = findConfigFile(process.cwd())
+    const config = configPath ? loadConfig(configPath) : null
+    const projectRoot = config?.projectRoot ?? process.cwd()
+    const outputDir = outputDirFlag
+      ? resolve(process.cwd(), outputDirFlag)
+      : config?.catalog
+        ? resolve(config.projectRoot, config.catalog.output)
+        : resolve(process.cwd(), 'catalog')
+
+    generateAtlasIndex(outputDir, projectRoot, manifest, sessionIndex)
+    console.log(chalk.green(`  ✓  ${relative(projectRoot, join(outputDir, 'index.html')) || 'catalog/index.html'} generated`))
+    return
+  }
+
   const { generateIndex } = await import('../catalog/html.js')
   const config = loadConfig()
   if (!config.catalog) {
@@ -1139,6 +1235,9 @@ const writeStatusPath = parseWriteStatus();
     case 'catalog:validate': await cmdCatalogValidate(); break
     case 'catalog:index':    await cmdCatalogIndex(); break
     case 'catalog:upload':   await cmdCatalogUpload(); break
+    case 'atlas:import':     cmdAtlasImport(); break
+    case 'atlas:export':     cmdAtlasExport(); break
+    case 'atlas:migrate':    cmdAtlasMigrate(); break
     case 'registry:scan':    cmdRegistryScan(); break
     case 'quality:check': {
       const passed = await cmdQualityCheck()
@@ -1158,7 +1257,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate | catalog:index | catalog:upload | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file>] | all')
       process.exit(1)
   }
 

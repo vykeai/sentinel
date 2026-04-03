@@ -1,0 +1,74 @@
+{
+  "id": "T-006",
+  "title": "Extend expected-shot, diff, and parity validation to Atlas artifacts",
+  "description": "Teach Sentinel's validation layers to understand Atlas-produced surface/scenario artifacts without reducing them back to legacy flat assumptions.",
+  "wave": "wave-2",
+  "space": "space-validation",
+  "status": "done",
+  "priority": "critical",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": ["T-002", "T-005"],
+  "spec": "S-001",
+  "lane": "lane-validation",
+  "surfaceScope": [
+    "expected shots",
+    "visual diff",
+    "parity"
+  ],
+  "acceptanceCriteria": [
+    "Expected-shot validation understands surface and scenario coverage",
+    "Diff and parity logic can compare Atlas-produced artifacts without losing scenario semantics",
+    "Legacy validation remains available during migration",
+    "Validation output makes it obvious whether a failure came from coverage drift, artifact mismatch, or adapter misuse"
+  ],
+  "proofRequirements": [
+    "tests or fixtures cover Atlas-style expected shots and comparisons",
+    "validation output examples exist in docs or snapshots"
+  ],
+  "nonGoals": [
+    "replacing Atlas review workflows",
+    "dropping legacy validation support before products migrate"
+  ],
+  "notes": [
+    {
+      "at": "2026-04-03T00:02:34.000Z",
+      "by": "codex",
+      "text": "Execution started for Atlas-aware validation. The slice will add expected-artifact coverage, validation output, and scenario-preserving diff/parity units without breaking legacy catalog validation."
+    },
+    {
+      "at": "2026-04-03T00:08:27.000Z",
+      "by": "codex",
+      "text": "Completed Atlas-aware validation by adding expected-artifact builders, classified Atlas validation results, scenario-preserving diff/parity units, and catalog:validate Atlas mode with CLI/integration coverage. Full tests, build, and diff checks passed."
+    }
+  ],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-02T20:45:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-03T00:02:34.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-03T00:08:27.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-02T20:45:00.000Z",
+  "updatedAt": "2026-04-03T00:08:27.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

@@ -8,15 +8,16 @@ Sentinel is the source of truth for cross-platform consistency: design tokens, s
 
 ## First-Time Setup
 
-Sentinel is installed as a local dependency linked from `~/dev/sentinel`:
+Sentinel should be installed as a local project dependency:
 
 ```bash
-npm install   # links sentinel from the local checkout
+npm install --save-dev @sentinel/cli
 ```
 
-If `npm install` fails because `~/dev/sentinel` is missing, clone it first:
+Then verify the local bin instead of relying on implicit `npx` installs:
+
 ```bash
-git clone https://github.com/vykeai/sentinel.git ~/dev/sentinel
+npx --no-install sentinel doctor
 ```
 
 ---
@@ -24,7 +25,7 @@ git clone https://github.com/vykeai/sentinel.git ~/dev/sentinel
 ## Before Every Task
 
 ```bash
-npx sentinel schema:validate
+npx --no-install sentinel schema:validate
 ```
 
 If validation fails, stop and fix schema errors before proceeding.
@@ -36,7 +37,7 @@ If validation fails, stop and fix schema errors before proceeding.
 Edit schemas in the `sentinel/` directory. After any schema change:
 
 ```bash
-npx sentinel schema:generate
+npx --no-install sentinel schema:generate
 ```
 
 **Never hand-edit generated output files.** They are listed in `sentinel.yaml → platforms[*].output`. Edit the schema, then regenerate.
@@ -63,7 +64,7 @@ The `sentinel-registry` hook will warn you if you write a screen file without re
 ### Scan for unregistered screens
 
 ```bash
-npx sentinel registry:scan
+npx --no-install sentinel registry:scan
 ```
 
 Reports all screen files in the codebase that are not in `sentinel.yaml screens:`. Fix every item before marking a task done. Run with `--file <path>` to check a single file.
@@ -79,13 +80,13 @@ Sentinel generates the network-layer mock interceptors (`MockURLProtocol.swift` 
 Whenever you add or change an API endpoint used by the app, update `mock-config.json` with the new fixture mapping, then regenerate:
 
 ```bash
-npx sentinel mock:generate
+npx --no-install sentinel mock:generate
 ```
 
 ### Validate fixtures
 
 ```bash
-npx sentinel mock:validate
+npx --no-install sentinel mock:validate
 ```
 
 Checks every fixture file declared in `mock-config.json` exists on disk and matches the endpoint response schema. Run this before committing.
@@ -168,26 +169,46 @@ Supported variants: `light`, `dark`, `glossy-light`, `glossy-dark`
 
 ```bash
 # Capture all screenshots (requires Maestro flow: on each screen entry)
-npx sentinel catalog:capture
+npx --no-install sentinel catalog:capture
 
 # Filter
-npx sentinel catalog:capture --screen sign-in
-npx sentinel catalog:capture --os ios18
-npx sentinel catalog:capture --os android --device phone
+npx --no-install sentinel catalog:capture --screen sign-in
+npx --no-install sentinel catalog:capture --os ios18
+npx --no-install sentinel catalog:capture --os android --device phone
+npx --no-install sentinel catalog:capture --os android --app-variant dev
 
 # Upload a single screenshot manually (for screens without a flow)
-npx sentinel catalog:upload --screen profile --os ios18 --device iphone --variant light /tmp/shot.png
+npx --no-install sentinel catalog:upload --screen profile --os ios18 --device iphone --variant light /tmp/shot.png
 
 # Validate all expected screenshots exist (CI gate)
-npx sentinel catalog:validate
+npx --no-install sentinel catalog:validate
+
+# Validate Atlas fixture coverage and artifact presence
+npx --no-install sentinel catalog:validate \
+  --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json
+
+# Diagnose Atlas migration mistakes and script wiring
+npx --no-install sentinel doctor \
+  --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json
 
 # Generate + open the interactive HTML viewer
-npx sentinel catalog:index && open catalog/index.html
+npx --no-install sentinel catalog:index && open catalog/index.html
+
+# Render Atlas fixtures through the same viewer contract
+npx --no-install sentinel catalog:index \
+  --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json \
+  --output-dir catalog && open catalog/index.html
 ```
 
 ### Rules
 
 - **Never create your own HTML screen viewer.** `sentinel catalog:index` is the only permitted viewer.
+- Atlas-backed validation also stays on the legacy command surface: use `sentinel catalog:validate --atlas-manifest ... --session-index ...`.
+- Atlas-backed migration diagnostics live on `sentinel doctor --atlas-manifest ... --session-index ...`.
+- Atlas-backed review runs must still go through `sentinel catalog:index`; Atlas summary commands are not a separate viewer.
 - Never commit hand-crafted screenshot HTML, base64-embedded images, or custom catalog viewers.
 - Screens without a Maestro `flow` cannot use `catalog:capture` — use `catalog:upload` instead.
 - After adding a new screen to `sentinel.yaml`, capture or upload all required variants before marking done.

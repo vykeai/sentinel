@@ -1,7 +1,15 @@
 import fs from 'fs'
 import path from 'path'
 import yaml from 'js-yaml'
-import type { SentinelConfig, ResolvedConfig } from './types.js'
+import type {
+  CatalogConfig,
+  CatalogDeviceDef,
+  ResolvedConfig,
+  SentinelConfig,
+  SentinelConfigFile,
+  SentinelInputPlatformMap,
+  SentinelPlatformMap,
+} from './types.js'
 
 const CONFIG_FILES = ['sentinel.yaml', 'sentinel.yml', 'sentinel.json']
 
@@ -30,7 +38,8 @@ export function loadConfig(configPath?: string): ResolvedConfig {
 
   const raw = fs.readFileSync(filePath, 'utf-8')
   const ext = path.extname(filePath)
-  const config = (ext === '.json' ? JSON.parse(raw) : yaml.load(raw)) as SentinelConfig
+  const configFile = (ext === '.json' ? JSON.parse(raw) : yaml.load(raw)) as SentinelConfigFile
+  const config = normalizeConfig(configFile, filePath)
 
   validateConfig(config, filePath)
 
@@ -51,6 +60,40 @@ export function loadConfig(configPath?: string): ResolvedConfig {
   }
 }
 
+function normalizeConfig(configFile: SentinelConfigFile, filePath: string): SentinelConfig {
+  return {
+    ...configFile,
+    platforms: normalizePlatformAliases(configFile.platforms, filePath),
+  }
+}
+
+function normalizePlatformAliases(platforms: SentinelInputPlatformMap | undefined, filePath: string): SentinelPlatformMap {
+  if (!platforms) return {}
+
+  if (platforms.apple && platforms.ios) {
+    throw new Error(
+      `Invalid sentinel.yaml at ${filePath}:\n  • platforms.ios and platforms.apple are both declared — choose one (prefer ios)`
+    )
+  }
+
+  if (platforms.google && platforms.android) {
+    throw new Error(
+      `Invalid sentinel.yaml at ${filePath}:\n  • platforms.android and platforms.google are both declared — choose one (prefer android)`
+    )
+  }
+
+  const normalized: SentinelPlatformMap = {}
+
+  if (platforms.api) normalized.api = platforms.api
+  if (platforms.ios ?? platforms.apple) normalized.apple = platforms.ios ?? platforms.apple
+  if (platforms.android ?? platforms.google) normalized.google = platforms.android ?? platforms.google
+  if (platforms.web) normalized.web = platforms.web
+  if (platforms['web-admin']) normalized['web-admin'] = platforms['web-admin']
+  if (platforms.desktop) normalized.desktop = platforms.desktop
+
+  return normalized
+}
+
 function validateConfig(config: SentinelConfig, filePath: string): void {
   const errors: string[] = []
 
@@ -61,10 +104,46 @@ function validateConfig(config: SentinelConfig, filePath: string): void {
     errors.push('Missing required field: platforms (must declare at least one) or quality')
   }
 
+  validateCatalogConfig(config.catalog, errors)
+
   if (errors.length > 0) {
     throw new Error(
       `Invalid sentinel.yaml at ${filePath}:\n${errors.map(e => `  • ${e}`).join('\n')}`
     )
+  }
+}
+
+function validateCatalogConfig(catalog: CatalogConfig | undefined, errors: string[]): void {
+  if (!catalog) return
+
+  const osKeys = ['ios18', 'ios26', 'android', 'watchos', 'tvos'] as const
+  for (const osKey of osKeys) {
+    const osConfig = catalog[osKey]
+    if (!osConfig) continue
+
+    for (const [deviceKey, device] of Object.entries(osConfig) as [string, CatalogDeviceDef | undefined][]) {
+      if (!device) continue
+      const hasDefaultAppId = typeof device.app_id === 'string' && device.app_id.trim().length > 0
+      const variantEntries = Object.entries(device.app_ids ?? {})
+      const hasVariantAppIds = variantEntries.length > 0
+
+      if (!hasDefaultAppId && !hasVariantAppIds) {
+        errors.push(`catalog.${osKey}.${deviceKey}: declare app_id or app_ids`)
+      }
+
+      if (device.app_ids && !hasVariantAppIds) {
+        errors.push(`catalog.${osKey}.${deviceKey}: app_ids must contain at least one variant`)
+      }
+
+      for (const [variant, appId] of variantEntries) {
+        if (!variant.trim()) {
+          errors.push(`catalog.${osKey}.${deviceKey}: app_ids contains an empty variant key`)
+        }
+        if (typeof appId !== 'string' || appId.trim().length === 0) {
+          errors.push(`catalog.${osKey}.${deviceKey}: app_ids.${variant} must be a non-empty string`)
+        }
+      }
+    }
   }
 }
 

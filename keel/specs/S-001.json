@@ -1,0 +1,13 @@
+{
+  "id": "S-001",
+  "title": "Sentinel Atlas Compatibility + Migration",
+  "description": "Defines how Sentinel evolves from a flat screen catalog validator into the Atlas-era validation and audit layer while preserving current product proof value.",
+  "wave": "wave-1",
+  "space": "space-catalog",
+  "platforms": ["ios", "android", "web", "api"],
+  "status": "ready",
+  "content": "S-001.md",
+  "tasks": ["T-001", "T-002", "T-003", "T-004", "T-005", "T-006", "T-007", "T-008"],
+  "createdAt": "2026-04-02T20:45:00.000Z",
+  "updatedAt": "2026-04-02T20:45:00.000Z"
+}

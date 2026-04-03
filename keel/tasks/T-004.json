@@ -1,0 +1,73 @@
+{
+  "id": "T-004",
+  "title": "Add session-based capture adapter boundary for Atlas handoff",
+  "description": "Define how Sentinel receives Atlas-produced session captures and any related metadata instead of assuming direct flat-flow capture ownership.",
+  "wave": "wave-1",
+  "space": "space-catalog",
+  "status": "done",
+  "priority": "high",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": ["T-002"],
+  "spec": "S-001",
+  "lane": "lane-atlas-adapter",
+  "surfaceScope": [
+    "capture boundaries",
+    "artifact metadata consumption"
+  ],
+  "acceptanceCriteria": [
+    "Sentinel's capture boundary can consume session-oriented Atlas artifacts and metadata honestly",
+    "The contract does not assume Sentinel itself must navigate the app to remain useful",
+    "Legacy direct-capture behavior remains understood and documented during migration",
+    "Fixtures show how Atlas-produced captures are indexed for later validation"
+  ],
+  "proofRequirements": [
+    "adapter or fixture examples exist for session-based artifacts",
+    "migration docs explain the handoff"
+  ],
+  "nonGoals": [
+    "implementing full session orchestration in Sentinel",
+    "removing legacy capture support immediately"
+  ],
+  "notes": [
+    {
+      "at": "2026-04-03T00:20:00.000Z",
+      "by": "codex",
+      "text": "Execution started for the session-based Atlas capture handoff boundary. This slice defines how Sentinel consumes Atlas session artifact indexes without assuming Sentinel navigated the app itself."
+    },
+    {
+      "at": "2026-04-03T00:32:00.000Z",
+      "by": "codex",
+      "text": "Completed the Atlas session capture handoff boundary with explicit session-index types, validation, structured artifact-path rules, and example fixtures showing how Atlas-produced captures are indexed for Sentinel validation."
+    }
+  ],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-02T20:45:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-03T00:20:00.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-03T00:32:00.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-02T20:45:00.000Z",
+  "updatedAt": "2026-04-02T20:45:00.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

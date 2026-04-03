@@ -6,6 +6,7 @@ export type SentinelVersion = '1.0'
 export type Language = 'typescript' | 'python' | 'swift' | 'kotlin' | 'go'
 export type Framework = 'nestjs' | 'fastapi' | 'express' | 'nextjs' | 'nuxt' | 'rails'
 export type PlatformKey = 'api' | 'apple' | 'google' | 'web' | 'web-admin' | 'desktop'
+export type PlatformAliasKey = 'ios' | 'android'
 
 // ─── Platform Configs ─────────────────────────────────────────────────────────
 
@@ -94,7 +95,8 @@ export type InvariantCheck = InvariantContainsCheck | InvariantPatternCheck
 
 export interface CatalogDeviceDef {
   slug: string      // simemu slug for this specific device
-  app_id: string    // bundle ID / Android package
+  app_id?: string   // default bundle ID / Android package
+  app_ids?: Record<string, string> // named app variants, e.g. { dev: "app.example.dev", prod: "app.example" }
   glossy?: boolean  // ios26 only — add glossy-light + glossy-dark variants
 }
 
@@ -148,6 +150,40 @@ export interface GitHubConfig {
   token?: string              // defaults to GITHUB_TOKEN env var
 }
 
+export type SentinelPlatformMap = Partial<{
+  api: ApiPlatformConfig
+  apple: ApplePlatformConfig
+  google: GooglePlatformConfig
+  web: WebPlatformConfig
+  'web-admin': WebPlatformConfig
+  desktop: ApplePlatformConfig
+}>
+
+export type SentinelInputPlatformMap = SentinelPlatformMap & Partial<{
+  ios: ApplePlatformConfig
+  android: GooglePlatformConfig
+}>
+
+export interface SentinelConfigFile {
+  sentinel: SentinelVersion
+  project: string
+  version: string
+
+  // Path to the /sentinel/ directory in the adopting project.
+  // Internal structure is fixed — not configurable.
+  // Default: ./sentinel
+  location?: string
+
+  platforms: SentinelInputPlatformMap
+
+  chaos?: ChaosConfig
+  catalog?: CatalogConfig
+  notifications?: NotificationsConfig
+  github?: GitHubConfig
+  invariants?: InvariantCheck[]
+  quality?: QualityConfig
+}
+
 export interface SentinelConfig {
   sentinel: SentinelVersion
   project: string
@@ -158,14 +194,7 @@ export interface SentinelConfig {
   // Default: ./sentinel
   location?: string
 
-  platforms: Partial<{
-    api: ApiPlatformConfig
-    apple: ApplePlatformConfig
-    google: GooglePlatformConfig
-    web: WebPlatformConfig
-    'web-admin': WebPlatformConfig
-    desktop: ApplePlatformConfig
-  }>
+  platforms: SentinelPlatformMap
 
   chaos?: ChaosConfig
   catalog?: CatalogConfig

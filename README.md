@@ -17,10 +17,14 @@ Sentinel is a CLI tool that keeps your design tokens, strings, feature flags, mo
 | `sentinel contracts` | Validates API endpoint model references are consistent across platforms |
 | `sentinel mock:generate` | Generates `MockURLProtocol.swift` (iOS) + `MockDispatcher.kt` (Android) |
 | `sentinel mock:validate` | Validates all fixture JSON against endpoint response schemas |
+| `sentinel doctor` | Checks install health, local script wiring, config presence, mock integration drift, and Atlas migration mistakes |
 | `sentinel catalog:capture` | Captures screenshots for every registered screen via Maestro flows |
 | `sentinel catalog:upload` | Uploads a single screenshot manually for screens without a flow |
-| `sentinel catalog:validate` | CI gate — confirms all expected screenshot variants exist |
-| `sentinel catalog:index` | Generates an interactive HTML catalog viewer |
+| `sentinel catalog:validate` | CI gate — confirms expected legacy screenshots or Atlas artifacts exist |
+| `sentinel catalog:index` | Generates the interactive HTML catalog viewer for legacy catalogs or Atlas fixtures |
+| `sentinel atlas:import` | Reads an Atlas manifest and optional session index as a Sentinel compatibility input |
+| `sentinel atlas:export` | Exports legacy `catalog.screens` data into a surface-based migration fixture |
+| `sentinel atlas:migrate` | Writes an explicit migration plan showing what Sentinel transforms versus what Atlas owns |
 | `sentinel registry:scan` | Finds screen files in the codebase not registered in `sentinel.yaml` |
 | `sentinel chaos` | Runs chaos scenarios (network, auth, data, payment, platform) |
 | `sentinel flows` | Runs Maestro and Playwright end-to-end flows |
@@ -34,19 +38,31 @@ Sentinel is a CLI tool that keeps your design tokens, strings, feature flags, mo
 ## 🔧 Installation
 
 ```bash
-npm install --save-dev sentinel
+npm install --save-dev @sentinel/cli
 ```
 
 Copy the example config to your repo root:
 
 ```bash
-cp node_modules/sentinel/sentinel.yaml.example sentinel.yaml
+cp node_modules/@sentinel/cli/sentinel.yaml.example sentinel.yaml
 ```
 
 Edit output paths to match your project structure, then run:
 
 ```bash
-npx sentinel schema:validate
+npx --no-install sentinel doctor
+npx --no-install sentinel schema:validate
+```
+
+In `package.json` scripts, prefer the local bin directly:
+
+```json
+{
+  "scripts": {
+    "schema:validate": "sentinel schema:validate",
+    "mock:validate": "sentinel mock:validate"
+  }
+}
 ```
 
 ---
@@ -172,7 +188,7 @@ object DebugNetworkModule {
 ### Fixture validation
 
 ```bash
-npx sentinel mock:validate
+npx --no-install sentinel mock:validate
 ```
 
 ```
@@ -188,6 +204,47 @@ Run this in CI to catch drift before it ships. If a backend engineer removes a f
 ## 📸 Screen catalog
 
 The catalog is a collection of screenshots for every registered screen, OS version, device type, and visual variant.
+
+Sentinel still accepts the legacy flat `catalog.screens` list, but it now treats that as a compatibility layer for the richer Atlas-era review model:
+- `surface` is the review unit
+- `scenario` is one state of that surface
+- `target` is one OS / device / variant capture combination
+
+Legacy screens map to a single `default` scenario through Sentinel's adapter boundary so products can migrate without losing clarity about the eventual model.
+
+### Atlas Compatibility
+
+Sentinel's Atlas-era compatibility layer is contract-first:
+
+```bash
+npx --no-install sentinel atlas:import --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json
+
+npx --no-install sentinel atlas:export --output tmp/atlas-export.json
+npx --no-install sentinel atlas:migrate --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --write tmp/atlas-migration.json
+```
+
+Those commands define the migration boundary without pretending Sentinel owns Atlas authoring or Atlas capture orchestration. See [docs/atlas-compatibility.md](/Users/luke/dev/onlytools/sentinel/docs/atlas-compatibility.md).
+
+For the transition plan and recommended script wiring, see [docs/atlas-migration.md](/Users/luke/dev/onlytools/sentinel/docs/atlas-migration.md).
+
+Use the existing viewer command to open Atlas-backed review hierarchies:
+
+```bash
+npx --no-install sentinel catalog:index \
+  --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json \
+  --output-dir catalog
+```
+
+Atlas-backed validation uses the same `catalog:validate` command and reports coverage drift separately from artifact mismatches:
+
+```bash
+npx --no-install sentinel catalog:validate \
+  --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json
+```
 
 ### Configuration
 
@@ -210,7 +267,9 @@ catalog:
   android:
     phone:
       slug: myapp-android
-      app_id: com.example.app
+      app_ids:
+        dev: com.example.app.dev
+        prod: com.example.app
 
   screens:
     - slug: sign-in
@@ -236,14 +295,27 @@ Examples:
 ### Commands
 
 ```bash
-npx sentinel catalog:capture                                    # all screens
-npx sentinel catalog:capture --screen sign-in                  # one screen
-npx sentinel catalog:capture --os android --device phone       # filter by OS + device
-npx sentinel catalog:upload --screen profile --os ios18 \
-  --device iphone --variant light /tmp/shot.png                # manual upload
-npx sentinel catalog:validate                                   # CI gate
-npx sentinel catalog:index && open catalog/index.html          # HTML viewer
+npx --no-install sentinel catalog:capture                               # all screens
+npx --no-install sentinel catalog:capture --screen sign-in             # one screen
+npx --no-install sentinel catalog:capture --os android --device phone  # filter by OS + device
+npx --no-install sentinel catalog:capture --os android --app-variant dev
+npx --no-install sentinel catalog:upload --screen profile --os ios18 \
+  --device iphone --variant light /tmp/shot.png
+npx --no-install sentinel catalog:validate
+npx --no-install sentinel catalog:index && open catalog/index.html
+
+# Validate Atlas fixture coverage and artifact presence
+npx --no-install sentinel catalog:validate \
+  --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json
+
+# Generate the same viewer from Atlas fixtures
+npx --no-install sentinel catalog:index \
+  --atlas-manifest examples/atlas/manifest.fitkind-mobile.v1.json \
+  --session-index examples/atlas/session-index.fitkind-mobile.v1.json
 ```
+
+If a device declares multiple `app_ids`, `catalog:capture` requires `--app-variant <name>` unless a default `app_id` or `app_ids.default` is present.
 
 ---
 
@@ -261,15 +333,21 @@ screens:
 Scan for unregistered screens:
 
 ```bash
-npx sentinel registry:scan
-npx sentinel registry:scan --file apple/MyApp/Screens/ProfileDetailView.swift
+npx --no-install sentinel registry:scan
+npx --no-install sentinel registry:scan --file apple/MyApp/Screens/ProfileDetailView.swift
 ```
 
 ---
 
 ## ⚙️ sentinel.yaml
 
-Platform keys: `apple`, `google`, `web`, `web-admin`, `api`, `desktop`.
+Preferred `sentinel.yaml` platform keys: `ios`, `android`, `web`, `web-admin`, `api`, `desktop`.
+
+Compatibility aliases:
+- `apple` is accepted as a legacy alias for `ios`
+- `google` is accepted as a legacy alias for `android`
+
+Sentinel still normalizes those config keys onto its current internal `apple` / `google` platform model, so shared Sentinel schemas and reports may continue to use the canonical internal names during migration.
 
 ```yaml
 sentinel: "1.0"
@@ -277,7 +355,7 @@ project: my-app
 version: "1.0.0"
 
 platforms:
-  apple:
+  ios:
     language: swift
     output:
       tokens:    apple/MyApp/DesignSystem/AppTokens.swift
@@ -287,7 +365,7 @@ platforms:
       endpoints: apple/MyApp/Core/Network/GeneratedEndpoints.swift
       mock:      apple/MyApp/Core/Network/MockURLProtocol.swift
 
-  google:
+  android:
     language: kotlin
     output:
       tokens:    google/app/src/main/kotlin/…/AppTokens.kt
@@ -303,16 +381,16 @@ platforms:
 
 ```yaml
 - name: Sentinel — validate
-  run: npx sentinel schema:validate
+  run: npx --no-install sentinel schema:validate
 
 - name: Sentinel — mock validate
-  run: npx sentinel mock:validate
+  run: npx --no-install sentinel mock:validate
 
 - name: Sentinel — catalog validate
-  run: npx sentinel catalog:validate
+  run: npx --no-install sentinel catalog:validate
 
 - name: Sentinel — registry scan
-  run: npx sentinel registry:scan
+  run: npx --no-install sentinel registry:scan
 ```
 
 ---

@@ -1,0 +1,414 @@
+{
+  "schemaVersion": "atlas.manifest/v1",
+  "metadata": {
+    "manifestId": "sitches.mobile.pilot.v1",
+    "productId": "sitches",
+    "productName": "Sitches",
+    "platformFamily": "mobile",
+    "owner": "product-design",
+    "description": "Atlas pilot manifest for Sitches' v1 capture subset covering discovery, trust, and messaging.",
+    "revision": 1
+  },
+  "paths": [
+    {
+      "id": "discover:feed",
+      "kind": "surface",
+      "title": "Discovery feed",
+      "segments": [
+        { "kind": "root", "value": "discover", "label": "Discover" },
+        { "kind": "surface", "value": "feed", "label": "Feed" }
+      ]
+    },
+    {
+      "id": "discover:profile",
+      "kind": "surface",
+      "title": "Discovery profile",
+      "segments": [
+        { "kind": "root", "value": "discover", "label": "Discover" },
+        { "kind": "surface", "value": "profile", "label": "Profile" }
+      ]
+    },
+    {
+      "id": "trust:verification",
+      "kind": "surface",
+      "title": "Trust verification",
+      "segments": [
+        { "kind": "root", "value": "trust", "label": "Trust" },
+        { "kind": "surface", "value": "verification", "label": "Verification" }
+      ]
+    },
+    {
+      "id": "messages:inbox",
+      "kind": "surface",
+      "title": "Messages inbox",
+      "segments": [
+        { "kind": "root", "value": "messages", "label": "Messages" },
+        { "kind": "surface", "value": "inbox", "label": "Inbox" }
+      ]
+    },
+    {
+      "id": "messages:thread",
+      "kind": "surface",
+      "title": "Message thread",
+      "segments": [
+        { "kind": "root", "value": "messages", "label": "Messages" },
+        { "kind": "surface", "value": "thread", "label": "Thread" }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "feed:default",
+      "presetId": "list",
+      "scope": "shared",
+      "title": "Default discovery feed",
+      "description": "Curated match feed for a signed-in user."
+    },
+    {
+      "id": "profile:featured",
+      "presetId": "detail",
+      "scope": "shared",
+      "title": "Featured profile",
+      "description": "A profile detail view opened from discovery."
+    },
+    {
+      "id": "verification:identity",
+      "presetId": "form",
+      "scope": "shared",
+      "title": "Identity verification form",
+      "description": "Trust gate for identity and photo verification."
+    },
+    {
+      "id": "inbox:default",
+      "presetId": "list",
+      "scope": "shared",
+      "title": "Default messages inbox",
+      "description": "Conversation inbox with recent matches."
+    },
+    {
+      "id": "thread:selected",
+      "presetId": "detail",
+      "scope": "shared",
+      "title": "Selected message thread",
+      "description": "A single matched conversation thread."
+    }
+  ],
+  "targets": [
+    {
+      "id": "ios:iphone15pro:light:en-us",
+      "platform": "ios",
+      "deviceClass": "phone",
+      "deviceName": "iPhone 15 Pro",
+      "viewport": { "width": 393, "height": 852 },
+      "locale": "en-US",
+      "appearance": "light",
+      "orientation": "portrait"
+    },
+    {
+      "id": "android:pixel8:light:en-us",
+      "platform": "android",
+      "deviceClass": "phone",
+      "deviceName": "Pixel 8",
+      "viewport": { "width": 412, "height": 915 },
+      "locale": "en-US",
+      "appearance": "light",
+      "orientation": "portrait"
+    }
+  ],
+  "entryStrategies": [
+    {
+      "id": "discover:feed:launch-args",
+      "kind": "launch_args",
+      "title": "Launch discovery feed with app args",
+      "launchArgs": ["--surface=discover/feed", "--state=for-you"]
+    },
+    {
+      "id": "discover:profile:deeplink",
+      "kind": "deeplink",
+      "title": "Open a discovery profile from a deep link",
+      "uri": "sitches://discover/profile/aurora"
+    },
+    {
+      "id": "trust:verification:maestro-flow",
+      "kind": "maestro_flow",
+      "title": "Fallback Maestro flow for trust verification",
+      "flowPath": "maestro/flows/sitches-trust-verification.yaml"
+    },
+    {
+      "id": "messages:inbox:launch-args",
+      "kind": "launch_args",
+      "title": "Launch messages inbox with app args",
+      "launchArgs": ["--surface=messages/inbox"]
+    },
+    {
+      "id": "messages:thread:deeplink",
+      "kind": "deeplink",
+      "title": "Open a message thread from a deep link",
+      "uri": "sitches://messages/thread/roma"
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "discover:feed",
+      "kind": "screen",
+      "title": "Discovery feed",
+      "pathId": "discover:feed",
+      "scenarioPresetIds": ["list"],
+      "scenarioIds": ["feed:default"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["discover:feed:launch-args"],
+      "description": "Primary discovery surface for ranked matches."
+    },
+    {
+      "id": "discover:profile",
+      "kind": "screen",
+      "title": "Discovery profile",
+      "pathId": "discover:profile",
+      "scenarioPresetIds": ["detail"],
+      "scenarioIds": ["profile:featured"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["discover:profile:deeplink"],
+      "description": "Profile detail view opened from the feed."
+    },
+    {
+      "id": "trust:verification",
+      "kind": "screen",
+      "title": "Trust verification",
+      "pathId": "trust:verification",
+      "scenarioPresetIds": ["form"],
+      "scenarioIds": ["verification:identity"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["trust:verification:maestro-flow"],
+      "description": "Identity verification and safety gate before message actions."
+    },
+    {
+      "id": "messages:inbox",
+      "kind": "screen",
+      "title": "Messages inbox",
+      "pathId": "messages:inbox",
+      "scenarioPresetIds": ["list"],
+      "scenarioIds": ["inbox:default"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["messages:inbox:launch-args"],
+      "description": "Conversation inbox for active and recent matches."
+    },
+    {
+      "id": "messages:thread",
+      "kind": "screen",
+      "title": "Message thread",
+      "pathId": "messages:thread",
+      "scenarioPresetIds": ["detail"],
+      "scenarioIds": ["thread:selected"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["messages:thread:deeplink"],
+      "description": "A single conversation thread with the most concrete capture path in the pilot."
+    }
+  ]
+}
+{
+  "schemaVersion": "atlas.manifest/v1",
+  "metadata": {
+    "manifestId": "sitches.mobile.pilot.v1",
+    "productId": "sitches",
+    "productName": "Sitches",
+    "platformFamily": "mobile",
+    "owner": "product-design",
+    "description": "Atlas pilot manifest for Sitches' v1 capture subset covering discovery, trust, and messaging.",
+    "revision": 1
+  },
+  "paths": [
+    {
+      "id": "discover:feed",
+      "kind": "surface",
+      "title": "Discovery feed",
+      "segments": [
+        { "kind": "root", "value": "discover", "label": "Discover" },
+        { "kind": "surface", "value": "feed", "label": "Feed" }
+      ]
+    },
+    {
+      "id": "discover:profile",
+      "kind": "surface",
+      "title": "Discovery profile",
+      "segments": [
+        { "kind": "root", "value": "discover", "label": "Discover" },
+        { "kind": "surface", "value": "profile", "label": "Profile" }
+      ]
+    },
+    {
+      "id": "trust:verification",
+      "kind": "surface",
+      "title": "Trust verification",
+      "segments": [
+        { "kind": "root", "value": "trust", "label": "Trust" },
+        { "kind": "surface", "value": "verification", "label": "Verification" }
+      ]
+    },
+    {
+      "id": "messages:inbox",
+      "kind": "surface",
+      "title": "Messages inbox",
+      "segments": [
+        { "kind": "root", "value": "messages", "label": "Messages" },
+        { "kind": "surface", "value": "inbox", "label": "Inbox" }
+      ]
+    },
+    {
+      "id": "messages:thread",
+      "kind": "surface",
+      "title": "Message thread",
+      "segments": [
+        { "kind": "root", "value": "messages", "label": "Messages" },
+        { "kind": "surface", "value": "thread", "label": "Thread" }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "feed:default",
+      "presetId": "list",
+      "scope": "shared",
+      "title": "Default discovery feed",
+      "description": "Curated match feed for a signed-in user."
+    },
+    {
+      "id": "profile:featured",
+      "presetId": "detail",
+      "scope": "shared",
+      "title": "Featured profile",
+      "description": "A profile detail view opened from discovery."
+    },
+    {
+      "id": "verification:identity",
+      "presetId": "form",
+      "scope": "shared",
+      "title": "Identity verification form",
+      "description": "Trust gate for identity and photo verification."
+    },
+    {
+      "id": "inbox:default",
+      "presetId": "list",
+      "scope": "shared",
+      "title": "Default messages inbox",
+      "description": "Conversation inbox with recent matches."
+    },
+    {
+      "id": "thread:selected",
+      "presetId": "detail",
+      "scope": "shared",
+      "title": "Selected message thread",
+      "description": "A single matched conversation thread."
+    }
+  ],
+  "targets": [
+    {
+      "id": "ios:iphone15pro:light:en-us",
+      "platform": "ios",
+      "deviceClass": "phone",
+      "deviceName": "iPhone 15 Pro",
+      "viewport": { "width": 393, "height": 852 },
+      "locale": "en-US",
+      "appearance": "light",
+      "orientation": "portrait"
+    },
+    {
+      "id": "android:pixel8:light:en-us",
+      "platform": "android",
+      "deviceClass": "phone",
+      "deviceName": "Pixel 8",
+      "viewport": { "width": 412, "height": 915 },
+      "locale": "en-US",
+      "appearance": "light",
+      "orientation": "portrait"
+    }
+  ],
+  "entryStrategies": [
+    {
+      "id": "discover:feed:launch-args",
+      "kind": "launch_args",
+      "title": "Launch discovery feed with app args",
+      "launchArgs": ["--surface=discover/feed", "--state=for-you"]
+    },
+    {
+      "id": "discover:profile:deeplink",
+      "kind": "deeplink",
+      "title": "Open a discovery profile from a deep link",
+      "uri": "sitches://discover/profile/aurora"
+    },
+    {
+      "id": "trust:verification:maestro-flow",
+      "kind": "maestro_flow",
+      "title": "Fallback Maestro flow for trust verification",
+      "flowPath": "maestro/flows/sitches-trust-verification.yaml"
+    },
+    {
+      "id": "messages:inbox:launch-args",
+      "kind": "launch_args",
+      "title": "Launch messages inbox with app args",
+      "launchArgs": ["--surface=messages/inbox"]
+    },
+    {
+      "id": "messages:thread:deeplink",
+      "kind": "deeplink",
+      "title": "Open a message thread from a deep link",
+      "uri": "sitches://messages/thread/roma"
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "discover:feed",
+      "kind": "screen",
+      "title": "Discovery feed",
+      "pathId": "discover:feed",
+      "scenarioPresetIds": ["list"],
+      "scenarioIds": ["feed:default"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["discover:feed:launch-args"],
+      "description": "Primary discovery surface for ranked matches."
+    },
+    {
+      "id": "discover:profile",
+      "kind": "screen",
+      "title": "Discovery profile",
+      "pathId": "discover:profile",
+      "scenarioPresetIds": ["detail"],
+      "scenarioIds": ["profile:featured"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["discover:profile:deeplink"],
+      "description": "Profile detail view opened from the feed."
+    },
+    {
+      "id": "trust:verification",
+      "kind": "screen",
+      "title": "Trust verification",
+      "pathId": "trust:verification",
+      "scenarioPresetIds": ["form"],
+      "scenarioIds": ["verification:identity"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["trust:verification:maestro-flow"],
+      "description": "Identity verification and safety gate before message actions."
+    },
+    {
+      "id": "messages:inbox",
+      "kind": "screen",
+      "title": "Messages inbox",
+      "pathId": "messages:inbox",
+      "scenarioPresetIds": ["list"],
+      "scenarioIds": ["inbox:default"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["messages:inbox:launch-args"],
+      "description": "Conversation inbox for active and recent matches."
+    },
+    {
+      "id": "messages:thread",
+      "kind": "screen",
+      "title": "Message thread",
+      "pathId": "messages:thread",
+      "scenarioPresetIds": ["detail"],
+      "scenarioIds": ["thread:selected"],
+      "targetIds": ["ios:iphone15pro:light:en-us", "android:pixel8:light:en-us"],
+      "entryStrategyIds": ["messages:thread:deeplink"],
+      "description": "A single conversation thread with the most concrete capture path in the pilot."
+    }
+  ]
+}

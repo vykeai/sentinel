@@ -1,0 +1,47 @@
+sentinel: "1.0"
+project: sitches
+version: "1.0.0"
+location: ./sentinel
+
+platforms:
+  apple:
+    path: ./apple
+    language: swift
+    output:
+      tokens: ./apple/Sitches/DesignSystem/Tokens/AppTokens.swift
+      strings: ./apple/Sitches/Resources/Strings.swift
+      flags: ./apple/Sitches/Core/FeatureFlags.swift
+
+  google:
+    path: ./google
+    language: kotlin
+    output:
+      tokens: ./google/app/src/main/kotlin/app/sitches/ios/design/tokens/AppTokens.kt
+      strings: ./google/app/src/main/res/values/strings-generated.xml
+      flags: ./google/app/src/main/kotlin/app/sitches/ios/core/FeatureFlags.kt
+
+catalog:
+  output: catalog/
+  resize: 1000
+  ios18:
+    iphone:
+      slug: sitches-ios
+      app_id: app.sitches.ios.dev
+  ios26:
+    iphone:
+      slug: sitches-ios26
+      app_id: app.sitches.ios.dev
+      glossy: true
+  android:
+    phone:
+      slug: sitches-claude
+      app_id: app.sitches.ios.dev
+  screens:
+    - slug: welcome
+      name: Welcome
+    - slug: browse
+      name: Browse
+    - slug: chat
+      name: Chat
+    - slug: profile
+      name: Profile

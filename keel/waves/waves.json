@@ -1,0 +1,54 @@
+{
+  "waves": [
+    {
+      "id": "wave-1",
+      "name": "Atlas Compatibility + Surface Contract",
+      "goal": "Make Sentinel Atlas-compatible by defining the adapter contract, normalizing config vocabulary, and preserving a clean migration path from the current flat catalog model.",
+      "status": "done",
+      "target": "2026-W15",
+      "gates": [],
+      "checkpoints": [
+        {
+          "id": "cp-1-1",
+          "name": "Config and type model are honest",
+          "description": "Platform keys, catalog types, and surface/scenario vocabulary line up with real ecosystem usage and Atlas expectations.",
+          "date": null,
+          "done": true
+        },
+        {
+          "id": "cp-1-2",
+          "name": "Migration contract exists",
+          "description": "Sentinel can explain how Atlas manifests, legacy catalog.screens configs, and product proof flows coexist during transition.",
+          "date": null,
+          "done": true
+        }
+      ]
+    },
+    {
+      "id": "wave-2",
+      "name": "Hierarchical Review + Migration",
+      "goal": "Upgrade Sentinel's dashboard, validation, and doctor paths so Atlas artifacts can be reviewed and validated without breaking existing product proof loops.",
+      "status": "done",
+      "target": "2026-W17",
+      "gates": [
+        "wave-1"
+      ],
+      "checkpoints": [
+        {
+          "id": "cp-2-1",
+          "name": "Hierarchical dashboard works",
+          "description": "Sentinel can present surface path, scenario, and target hierarchies instead of only flat screen slugs.",
+          "date": null,
+          "done": true
+        },
+        {
+          "id": "cp-2-2",
+          "name": "Atlas validation path is real",
+          "description": "Expected shots, diff, parity, doctor, and migration docs all support Atlas-backed proof without a flag-day break.",
+          "date": null,
+          "done": true
+        }
+      ]
+    }
+  ]
+}

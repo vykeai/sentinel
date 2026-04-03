@@ -1,5 +1,5 @@
 {
-  "name": "sentinel",
+  "name": "@sentinel/cli",
   "version": "0.1.0",
   "description": "Product integrity guardian — schema, contracts, chaos, visual, and flow testing across every platform",
   "type": "module",
@@ -11,6 +11,7 @@
     "schema:generate": "tsx src/cli/index.ts schema:generate",
     "schema:validate": "tsx src/cli/index.ts schema:validate",
     "contracts": "tsx src/cli/index.ts contracts",
+    "doctor": "tsx src/cli/index.ts doctor",
     "contracts:matrix": "tsx src/cli/index.ts contracts:matrix",
     "chaos": "tsx src/cli/index.ts chaos",
     "flows": "tsx src/cli/index.ts flows",

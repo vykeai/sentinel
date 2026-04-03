@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "atlas.manifest/v1",
+  "metadata": {
+    "manifestId": "fitkind.mobile.catalog.v1",
+    "productId": "fitkind",
+    "productName": "FitKind",
+    "platformFamily": "mobile",
+    "owner": "design-systems",
+    "description": "Example Atlas manifest fixture consumed by Sentinel's compatibility layer.",
+    "revision": 1
+  },
+  "paths": [
+    {
+      "id": "main:journey:list",
+      "kind": "surface",
+      "title": "Workouts list",
+      "segments": [
+        { "kind": "root", "value": "main", "label": "Main" },
+        { "kind": "group", "value": "journey", "label": "Journey" },
+        { "kind": "surface", "value": "list", "label": "List" }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "journey:list:default",
+      "presetId": "list",
+      "scope": "shared",
+      "title": "Default list"
+    },
+    {
+      "id": "journey:list:empty-journey",
+      "presetId": "list",
+      "scope": "product-extension",
+      "title": "Empty journey list"
+    }
+  ],
+  "targets": [
+    {
+      "id": "ios:iphone15pro:light:en-gb",
+      "platform": "ios",
+      "deviceClass": "phone",
+      "deviceName": "iPhone 15 Pro",
+      "viewport": { "width": 393, "height": 852 },
+      "locale": "en-GB",
+      "appearance": "light",
+      "orientation": "portrait"
+    },
+    {
+      "id": "android:pixel8:light:en-gb",
+      "platform": "android",
+      "deviceClass": "phone",
+      "deviceName": "Pixel 8",
+      "viewport": { "width": 412, "height": 915 },
+      "locale": "en-GB",
+      "appearance": "light",
+      "orientation": "portrait"
+    }
+  ],
+  "entryStrategies": [
+    {
+      "id": "journey:list:deeplink",
+      "kind": "deepLink",
+      "title": "Open workouts list"
+    }
+  ],
+  "surfaces": [
+    {
+      "id": "journey:list",
+      "kind": "screen",
+      "title": "Workouts list",
+      "pathId": "main:journey:list",
+      "scenarioIds": [
+        "journey:list:default",
+        "journey:list:empty-journey"
+      ],
+      "targetIds": [
+        "ios:iphone15pro:light:en-gb",
+        "android:pixel8:light:en-gb"
+      ],
+      "entryStrategyIds": [
+        "journey:list:deeplink"
+      ],
+      "scenarioPresetIds": [
+        "preset.list.default",
+        "preset.list.empty"
+      ]
+    },
+    {
+      "id": "journey:empty-state",
+      "kind": "overlay",
+      "title": "Journey empty state",
+      "pathId": "main:journey:list",
+      "scenarioIds": [
+        "journey:list:empty-journey"
+      ],
+      "targetIds": [
+        "ios:iphone15pro:light:en-gb"
+      ],
+      "entryStrategyIds": [
+        "journey:list:deeplink"
+      ],
+      "scenarioPresetIds": [
+        "preset.list.empty"
+      ]
+    }
+  ]
+}
