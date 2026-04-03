@@ -1,0 +1,57 @@
+{
+  "id": "T-009",
+  "title": "Add brand-aware Atlas fixtures and docs for Brandie-backed review metadata",
+  "description": "Create realistic example manifests, session indexes, and docs that show how Brandie review-pack metadata flows through Atlas and into Sentinel without Sentinel owning the brand system.",
+  "wave": "wave-3",
+  "space": "space-ecosystem",
+  "status": "todo",
+  "priority": "high",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": [
+    "T-008"
+  ],
+  "spec": "S-002",
+  "lane": "lane-ecosystem",
+  "surfaceScope": [
+    "examples/",
+    "docs/",
+    "fixture coverage"
+  ],
+  "acceptanceCriteria": [
+    "Sentinel ships at least one Atlas fixture set that includes Brandie-backed review metadata alongside captures",
+    "Docs explain clearly what data comes from Brandie, what Atlas resolves, and what Sentinel consumes",
+    "Fixture examples are realistic enough to model FitKind or Sitches-style review packs",
+    "The examples stay optional and do not imply Sentinel owns the Brandie authoring flow"
+  ],
+  "proofRequirements": [
+    "fixture-based tests or docs cover the brand-aware review metadata path",
+    "examples demonstrate the boundary between Atlas-owned and Brandie-owned data"
+  ],
+  "nonGoals": [
+    "embedding product repos into Sentinel",
+    "replacing Atlas as the review dashboard"
+  ],
+  "notes": [],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-03T11:15:00.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-03T11:15:00.000Z",
+  "updatedAt": "2026-04-03T11:15:00.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

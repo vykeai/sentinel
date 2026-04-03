@@ -1,0 +1,58 @@
+{
+  "id": "T-012",
+  "title": "Classify validation failures for missing screenshots versus missing review metadata",
+  "description": "Extend Sentinel's Atlas-era validation output so it can distinguish missing visual proof from missing Brandie-backed review context, reducing false assumptions during migration and review-pack adoption.",
+  "wave": "wave-3",
+  "space": "space-validation",
+  "status": "todo",
+  "priority": "critical",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": [
+    "T-009",
+    "T-010"
+  ],
+  "spec": "S-002",
+  "lane": "lane-validation",
+  "surfaceScope": [
+    "catalog:validate",
+    "validation messaging",
+    "review metadata classification"
+  ],
+  "acceptanceCriteria": [
+    "Sentinel validation can classify missing screenshot artifacts separately from missing Brandie review metadata",
+    "Output remains understandable for products that do not use Brandie-backed metadata at all",
+    "Failures make it obvious whether the next action belongs in Atlas capture, Brandie exports, or integration wiring",
+    "Tests cover at least one screenshot-missing case, one metadata-missing case, and one mixed case"
+  ],
+  "proofRequirements": [
+    "validation tests or example output prove the new classification behavior",
+    "migration docs mention the distinction directly"
+  ],
+  "nonGoals": [
+    "making review metadata a required gate for all Sentinel validation",
+    "replacing Atlas dashboard review with CLI output"
+  ],
+  "notes": [],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-03T11:15:00.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-03T11:15:00.000Z",
+  "updatedAt": "2026-04-03T11:15:00.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

@@ -1,0 +1,13 @@
+{
+  "id": "S-002",
+  "title": "Sentinel Brand-Aware Atlas Diagnostics",
+  "description": "Defines the small follow-on wave where Sentinel learns how to inspect, diagnose, and optionally surface Brandie-backed review metadata flowing through Atlas.",
+  "wave": "wave-3",
+  "space": "space-validation",
+  "platforms": ["ios", "android", "web", "api"],
+  "status": "ready",
+  "content": "S-002.md",
+  "tasks": ["T-009", "T-010", "T-011", "T-012"],
+  "createdAt": "2026-04-03T11:15:00.000Z",
+  "updatedAt": "2026-04-03T11:15:00.000Z"
+}

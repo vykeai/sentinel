@@ -1,0 +1,56 @@
+{
+  "id": "T-011",
+  "title": "Optionally surface Brandie review context in Sentinel dashboard and review output",
+  "description": "Expose Brandie-derived review context in Sentinel only where it materially helps audits and large review sessions, while keeping Atlas as the primary review UI and Brandie as the metadata source.",
+  "wave": "wave-3",
+  "space": "space-dashboard",
+  "status": "todo",
+  "priority": "medium",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": [
+    "T-009"
+  ],
+  "spec": "S-002",
+  "lane": "lane-review",
+  "surfaceScope": [
+    "dashboard output",
+    "review summaries"
+  ],
+  "acceptanceCriteria": [
+    "Sentinel can optionally show Brandie review context when brand-aware Atlas metadata is present",
+    "The output stays clearly secondary to Atlas and does not turn Sentinel into a design review product",
+    "The rendering remains useful even when screenshots are missing but brand metadata is present",
+    "Examples or tests prove the optional rendering path and the no-brand-metadata fallback"
+  ],
+  "proofRequirements": [
+    "dashboard or output fixtures show the optional brand-context rendering",
+    "docs explain when to use Sentinel output versus Atlas output"
+  ],
+  "nonGoals": [
+    "replicating the full Atlas dashboard experience",
+    "making Brandie metadata mandatory for Sentinel users"
+  ],
+  "notes": [],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-03T11:15:00.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-03T11:15:00.000Z",
+  "updatedAt": "2026-04-03T11:15:00.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}

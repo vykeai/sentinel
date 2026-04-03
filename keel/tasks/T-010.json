@@ -1,0 +1,56 @@
+{
+  "id": "T-010",
+  "title": "Add doctor diagnostics for missing or stale Brandie review-pack references",
+  "description": "Teach Sentinel Doctor to detect common brand-aware Atlas integration mistakes such as missing Brandie bindings, stale review-pack ids, or unresolved product overrides, so migration failures become actionable.",
+  "wave": "wave-3",
+  "space": "space-validation",
+  "status": "todo",
+  "priority": "high",
+  "platform": "all",
+  "assignee": null,
+  "depends_on": [
+    "T-009"
+  ],
+  "spec": "S-002",
+  "lane": "lane-migration",
+  "surfaceScope": [
+    "doctor",
+    "brand-aware Atlas diagnostics"
+  ],
+  "acceptanceCriteria": [
+    "Doctor can identify missing or stale Brandie review-pack references in Atlas-backed inputs",
+    "Diagnostics explain whether the failure belongs to Brandie export, Atlas binding, or Sentinel consumption",
+    "Suggested fixes are concrete enough for adopters to act on quickly",
+    "Tests or fixtures cover at least one missing-reference and one stale-reference case"
+  ],
+  "proofRequirements": [
+    "doctor tests or proof output show brand-aware diagnostics",
+    "docs mention the new diagnostic category"
+  ],
+  "nonGoals": [
+    "owning Brandie assets inside Sentinel",
+    "hardcoding product-specific brand mappings"
+  ],
+  "notes": [],
+  "cloudy_run": null,
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-04-03T11:15:00.000Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "run_status": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-04-03T11:15:00.000Z",
+  "updatedAt": "2026-04-03T11:15:00.000Z",
+  "validationOverrides": null,
+  "executionMode": null,
+  "cloudyTaskGraph": null,
+  "cloudy": null,
+  "product": null,
+  "parentId": null,
+  "dueDate": null
+}
