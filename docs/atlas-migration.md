@@ -34,7 +34,7 @@ Brandie owns:
 - Sentinel consumes Atlas fixtures through:
   - `sentinel catalog:index --atlas-manifest ... --session-index ...`
   - `sentinel catalog:validate --atlas-manifest ... --session-index ...`
-  - `sentinel doctor --atlas-manifest ... --session-index ...`
+  - `sentinel doctor --atlas-manifest ... --session-index ... [--brandie-root ...]`
 - Atlas owns the surface/scenario/target model; Sentinel adapts it for review and validation.
 
 3. Atlas-backed review and validation
@@ -53,6 +53,7 @@ Brandie owns:
 - Keeping package scripts on bare `catalog:index` / `catalog:validate` while claiming Atlas migration is active.
 - Treating Maestro as the default entry path instead of a fallback behind deterministic harness entry.
 - Letting Sentinel invent Brandie bindings instead of passing Atlas-resolved references through the manifest.
+- Letting Atlas point at a stale Brandie `packPath`, `packId`, or `atlasNamespaceRef` without running `sentinel doctor --brandie-root ...` to catch the drift.
 
 ## Recommended Scripts
 
@@ -61,7 +62,7 @@ Brandie owns:
   "scripts": {
     "catalog:index": "sentinel catalog:index --atlas-manifest atlas/manifest.json --session-index atlas/session-index.json",
     "catalog:validate": "sentinel catalog:validate --atlas-manifest atlas/manifest.json --session-index atlas/session-index.json",
-    "doctor:atlas": "sentinel doctor --atlas-manifest atlas/manifest.json --session-index atlas/session-index.json"
+    "doctor:atlas": "sentinel doctor --atlas-manifest atlas/manifest.json --session-index atlas/session-index.json --brandie-root ../brandie"
   }
 }
 ```

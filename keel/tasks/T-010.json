@@ -4,7 +4,7 @@
   "description": "Teach Sentinel Doctor to detect common brand-aware Atlas integration mistakes such as missing Brandie bindings, stale review-pack ids, or unresolved product overrides, so migration failures become actionable.",
   "wave": "wave-3",
   "space": "space-validation",
-  "status": "todo",
+  "status": "done",
   "priority": "high",
   "platform": "all",
   "assignee": null,
@@ -31,12 +31,31 @@
     "owning Brandie assets inside Sentinel",
     "hardcoding product-specific brand mappings"
   ],
-  "notes": [],
+  "notes": [
+    {
+      "at": "2026-04-03T11:03:00.000Z",
+      "by": "codex",
+      "text": "Execution started. This slice will keep Brandie diagnostics optional by resolving review-pack paths only when Atlas manifests opt into reviewContext, then report whether a failure belongs to Brandie export, Atlas binding, or Sentinel consumption."
+    },
+    {
+      "at": "2026-04-03T11:12:00.000Z",
+      "by": "codex",
+      "text": "Completed the Brandie-aware doctor slice by adding optional --brandie-root resolution, missing/stale review-pack diagnostics across Brandie export / Atlas binding / Sentinel consumption drift, test coverage for missing and stale cases, and migration docs. Verification passed: npm test, npm run build, git diff --check. Proof: ~/Desktop/screenshots/sentinel/t-010-doctor-proof.png."
+    }
+  ],
   "cloudy_run": null,
   "statusHistory": [
     {
       "status": "todo",
       "ts": "2026-04-03T11:15:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-03T11:03:00.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-03T11:12:00.000Z"
     }
   ],
   "attachments": [],
@@ -45,7 +64,7 @@
   "stageHistory": [],
   "recurring": null,
   "createdAt": "2026-04-03T11:15:00.000Z",
-  "updatedAt": "2026-04-03T11:15:00.000Z",
+  "updatedAt": "2026-04-03T11:12:00.000Z",
   "validationOverrides": null,
   "executionMode": null,
   "cloudyTaskGraph": null,

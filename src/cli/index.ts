@@ -785,10 +785,12 @@ function cmdDoctor(): boolean {
   const args = process.argv.slice(3)
   const atlasManifestPath = args.find((_, i) => args[i - 1] === '--atlas-manifest')
   const sessionIndexPath = args.find((_, i) => args[i - 1] === '--session-index')
+  const brandieRoot = args.find((_, i) => args[i - 1] === '--brandie-root')
   const result = runDoctorCheck(projectRoot, SENTINEL_PACKAGE_NAME, {
     fix: fixMode,
     atlasManifestPath,
     sessionIndexPath,
+    brandieRoot,
   })
 
   if (jsonMode) {
@@ -1257,9 +1259,9 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
       process.exit(1)
-  }
+    }
 
   if (writeStatusPath && report) {
     writeStatusFile(writeStatusPath, report)

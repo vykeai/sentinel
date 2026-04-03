@@ -31,8 +31,10 @@ sentinel catalog:validate --atlas-manifest <file> [--session-index <file>]
 Migration diagnostics use the doctor command:
 
 ```bash
-sentinel doctor --atlas-manifest <file> [--session-index <file>]
+sentinel doctor --atlas-manifest <file> [--session-index <file>] [--brandie-root <dir>]
 ```
+
+Use `--brandie-root` when Atlas `reviewContext` points at a Brandie checkout that lives outside the product repo. Sentinel resolves each `contractPath` and `packPath` relative to that root before classifying review-pack drift.
 
 Atlas validation classifies failures as:
 - `coverage-drift`: an expected surface/scenario/target combination has no screenshot capture record
@@ -112,6 +114,11 @@ Example:
 ```
 
 Sentinel currently treats this as optional compatibility metadata. Products that do not use Brandie-backed review packs should continue to validate cleanly without it.
+
+When `reviewContext` is present, Sentinel Doctor classifies the most common mistakes explicitly:
+- `Brandie export missing/invalid`: the Brandie contract or pack file is missing or malformed
+- `Sentinel consumption drift`: Atlas points at a stale `packPath` or `packId`, so Sentinel is consuming the wrong Brandie export
+- `Atlas binding drift`: Atlas binds a surface/scenario to an `atlasNamespaceRef` that the referenced Brandie pack does not export
 
 ## Identity Contract
 
