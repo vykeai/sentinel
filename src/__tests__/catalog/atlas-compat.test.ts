@@ -60,6 +60,27 @@ describe('atlas compatibility contracts', () => {
     expect(summary.sessionIndex?.missing).toBe(1)
   })
 
+  it('accepts optional Brandie-backed review context while keeping ownership explicit', () => {
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-brand-aware.v1.json')
+
+    validateAtlasManifestFixture(manifest, 'brand-aware manifest fixture')
+    validateAtlasSessionCaptureIndex(sessionIndex, 'brand-aware session fixture')
+    validateAtlasFixtureSet(manifest, sessionIndex, 'brand-aware fixture set')
+
+    expect(manifest.reviewContext?.sources[0]?.packId).toBe('fitkind.review-pack')
+    expect(manifest.reviewContext?.bindings[0]?.surfaceId).toBe('journey:empty-state')
+    expect(manifest.reviewContext?.bindings[0]?.atlasNamespaceRef).toBe('atlas.fitkind.journey.progress-photos-empty')
+
+    const summary = buildAtlasImportSummary(manifest, sessionIndex)
+    expect(summary.reviewContext).toEqual({
+      sources: 1,
+      bindings: 1,
+    })
+    expect(summary.preserved).toContain('Brandie review metadata references resolved by Atlas')
+    expect(summary.atlasOwned).toContain('binding product surfaces to Brandie review packs')
+  })
+
   it('rejects manifest surface references that do not exist', () => {
     const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
     const invalid = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture
@@ -85,6 +106,16 @@ describe('atlas compatibility contracts', () => {
     validateAtlasSessionCaptureIndex(mismatched, 'mismatched session fixture')
     expect(() => validateAtlasFixtureSet(manifest, mismatched, 'mismatched fixture set')).toThrow(
       'mismatched fixture set: capture.targetId ios:unknown:light:en-gb does not reference a declared target',
+    )
+  })
+
+  it('rejects Brandie review bindings that point at unknown Atlas surfaces or scenarios', () => {
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
+    const invalid = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture
+    invalid.reviewContext!.bindings[0].surfaceId = 'journey:unknown'
+
+    expect(() => validateAtlasManifestFixture(invalid, 'invalid brand-aware manifest')).toThrow(
+      'invalid brand-aware manifest: reviewContext.bindings.surfaceId journey:unknown does not reference a declared surface',
     )
   })
 

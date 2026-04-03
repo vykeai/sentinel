@@ -4,7 +4,7 @@
   "description": "Create realistic example manifests, session indexes, and docs that show how Brandie review-pack metadata flows through Atlas and into Sentinel without Sentinel owning the brand system.",
   "wave": "wave-3",
   "space": "space-ecosystem",
-  "status": "todo",
+  "status": "done",
   "priority": "high",
   "platform": "all",
   "assignee": null,
@@ -32,12 +32,31 @@
     "embedding product repos into Sentinel",
     "replacing Atlas as the review dashboard"
   ],
-  "notes": [],
+  "notes": [
+    {
+      "at": "2026-04-03T10:55:00.000Z",
+      "by": "codex",
+      "text": "Execution started. This slice will add a realistic Brandie-backed Atlas fixture path, make the ownership boundary explicit in Sentinel docs/tests, and keep review metadata optional rather than promoting Sentinel into a brand-system owner."
+    },
+    {
+      "at": "2026-04-03T10:59:00.000Z",
+      "by": "codex",
+      "text": "Completed the brand-aware Atlas fixture slice by adding optional reviewContext typing/validation, a FitKind brand-aware manifest + session-index example, compatibility docs, and atlas-compat coverage proving Sentinel preserves Atlas-resolved Brandie references without owning Brandie packs. Verification passed: npm test, npm run build, git diff --check. Proof: ~/Desktop/screenshots/sentinel/atlas-brand-aware-import-proof.png."
+    }
+  ],
   "cloudy_run": null,
   "statusHistory": [
     {
       "status": "todo",
       "ts": "2026-04-03T11:15:00.000Z"
+    },
+    {
+      "status": "active",
+      "ts": "2026-04-03T10:55:00.000Z"
+    },
+    {
+      "status": "done",
+      "ts": "2026-04-03T10:59:00.000Z"
     }
   ],
   "attachments": [],

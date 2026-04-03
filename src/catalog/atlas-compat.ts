@@ -63,6 +63,58 @@ export interface AtlasManifestSurface {
   description?: string
 }
 
+export interface AtlasManifestReviewSource {
+  id: string
+  kind: 'brandie-review-pack'
+  contractPath: string
+  packId: string
+  packPath: string
+  brandReference?: string
+}
+
+export interface AtlasManifestReviewVoiceContext {
+  headline?: string
+  body?: string
+  tone?: string
+  formality?: string
+  humor?: string
+  firstPerson?: boolean
+}
+
+export interface AtlasManifestReviewMascot {
+  id: string
+  poseId: string
+  promptId?: string
+}
+
+export interface AtlasManifestReviewIllustration {
+  role?: string
+  alt?: string
+  assetRef?: string
+}
+
+export interface AtlasManifestReviewBinding {
+  id: string
+  sourceId: string
+  surfaceId: string
+  scenarioId: string
+  sourceKind: 'brand-default' | 'scenario-override'
+  atlasNamespaceRef: string
+  surfaceFamily: string
+  reviewState: string
+  assetKind: 'empty-state' | 'state-variant' | 'voice-context'
+  sourceScreenId?: string
+  voiceContext?: AtlasManifestReviewVoiceContext
+  mascot?: AtlasManifestReviewMascot
+  illustration?: AtlasManifestReviewIllustration
+}
+
+export interface AtlasManifestReviewContext {
+  owner: 'atlas'
+  sources: AtlasManifestReviewSource[]
+  bindings: AtlasManifestReviewBinding[]
+}
+
 export interface AtlasManifestFixture {
   schemaVersion: typeof ATLAS_MANIFEST_VERSION
   metadata: AtlasManifestMetadata
@@ -71,6 +123,7 @@ export interface AtlasManifestFixture {
   targets: AtlasManifestTarget[]
   entryStrategies: AtlasManifestEntryStrategy[]
   surfaces: AtlasManifestSurface[]
+  reviewContext?: AtlasManifestReviewContext
 }
 
 export type AtlasCaptureStatus = 'captured' | 'missing' | 'failed'
@@ -123,6 +176,10 @@ export interface SentinelAtlasImportSummary {
     captured: number
     missing: number
     failed: number
+  }
+  reviewContext?: {
+    sources: number
+    bindings: number
   }
   transformed: string[]
   preserved: string[]
@@ -245,7 +302,7 @@ export function validateAtlasManifestFixture(value: unknown, source = 'atlas man
   const scenarioIds = assertUniqueIds(value.scenarios, 'scenario', source)
   const targetIds = assertUniqueIds(value.targets, 'target', source)
   const entryStrategyIds = assertUniqueIds(value.entryStrategies, 'entryStrategy', source)
-  assertUniqueIds(value.surfaces, 'surface', source)
+  const surfaceIds = assertUniqueIds(value.surfaces, 'surface', source)
 
   for (const surface of value.surfaces) {
     if (!isRecord(surface)) throw new Error(`${source}: each surface must be an object`)
@@ -276,6 +333,96 @@ export function validateAtlasManifestFixture(value: unknown, source = 'atlas man
     for (const entryStrategyId of surface.entryStrategyIds) {
       if (!entryStrategyIds.has(entryStrategyId)) {
         throw new Error(`${source}: surface.entryStrategyIds references unknown entry strategy ${entryStrategyId}`)
+      }
+    }
+  }
+
+  if (value.reviewContext !== undefined) {
+    if (!isRecord(value.reviewContext)) throw new Error(`${source}: reviewContext must be an object`)
+    if (value.reviewContext.owner !== 'atlas') {
+      throw new Error(`${source}: reviewContext.owner must be atlas`)
+    }
+
+    assertArray(value.reviewContext.sources, 'reviewContext.sources', source)
+    assertArray(value.reviewContext.bindings, 'reviewContext.bindings', source)
+
+    const reviewSourceIds = assertUniqueIds(value.reviewContext.sources, 'reviewContext.source', source)
+    assertUniqueIds(value.reviewContext.bindings, 'reviewContext.binding', source)
+
+    for (const reviewSource of value.reviewContext.sources) {
+      if (!isRecord(reviewSource)) throw new Error(`${source}: each reviewContext.sources entry must be an object`)
+      if (reviewSource.kind !== 'brandie-review-pack') {
+        throw new Error(`${source}: reviewContext.sources.kind must be brandie-review-pack`)
+      }
+      assertString(reviewSource.contractPath, 'reviewContext.sources.contractPath', source)
+      assertString(reviewSource.packId, 'reviewContext.sources.packId', source)
+      assertString(reviewSource.packPath, 'reviewContext.sources.packPath', source)
+      if (reviewSource.brandReference !== undefined) {
+        assertString(reviewSource.brandReference, 'reviewContext.sources.brandReference', source)
+      }
+    }
+
+    for (const reviewBinding of value.reviewContext.bindings) {
+      if (!isRecord(reviewBinding)) throw new Error(`${source}: each reviewContext.bindings entry must be an object`)
+      assertString(reviewBinding.sourceId, 'reviewContext.bindings.sourceId', source)
+      assertString(reviewBinding.surfaceId, 'reviewContext.bindings.surfaceId', source)
+      assertString(reviewBinding.scenarioId, 'reviewContext.bindings.scenarioId', source)
+      assertString(reviewBinding.sourceKind, 'reviewContext.bindings.sourceKind', source)
+      assertString(reviewBinding.atlasNamespaceRef, 'reviewContext.bindings.atlasNamespaceRef', source)
+      assertString(reviewBinding.surfaceFamily, 'reviewContext.bindings.surfaceFamily', source)
+      assertString(reviewBinding.reviewState, 'reviewContext.bindings.reviewState', source)
+      assertString(reviewBinding.assetKind, 'reviewContext.bindings.assetKind', source)
+
+      if (!reviewSourceIds.has(reviewBinding.sourceId)) {
+        throw new Error(`${source}: reviewContext.bindings.sourceId ${reviewBinding.sourceId} does not reference a declared review source`)
+      }
+      if (!surfaceIds.has(reviewBinding.surfaceId)) {
+        throw new Error(`${source}: reviewContext.bindings.surfaceId ${reviewBinding.surfaceId} does not reference a declared surface`)
+      }
+      if (!scenarioIds.has(reviewBinding.scenarioId)) {
+        throw new Error(`${source}: reviewContext.bindings.scenarioId ${reviewBinding.scenarioId} does not reference a declared scenario`)
+      }
+      if (!['brand-default', 'scenario-override'].includes(reviewBinding.sourceKind)) {
+        throw new Error(`${source}: reviewContext.bindings.sourceKind must be brand-default or scenario-override`)
+      }
+      if (!['empty-state', 'state-variant', 'voice-context'].includes(reviewBinding.assetKind)) {
+        throw new Error(`${source}: reviewContext.bindings.assetKind must be empty-state, state-variant, or voice-context`)
+      }
+
+      if (reviewBinding.sourceScreenId !== undefined) {
+        assertString(reviewBinding.sourceScreenId, 'reviewContext.bindings.sourceScreenId', source)
+      }
+
+      if (reviewBinding.voiceContext !== undefined) {
+        if (!isRecord(reviewBinding.voiceContext)) {
+          throw new Error(`${source}: reviewContext.bindings.voiceContext must be an object`)
+        }
+      }
+
+      if (reviewBinding.mascot !== undefined) {
+        if (!isRecord(reviewBinding.mascot)) {
+          throw new Error(`${source}: reviewContext.bindings.mascot must be an object`)
+        }
+        assertString(reviewBinding.mascot.id, 'reviewContext.bindings.mascot.id', source)
+        assertString(reviewBinding.mascot.poseId, 'reviewContext.bindings.mascot.poseId', source)
+        if (reviewBinding.mascot.promptId !== undefined) {
+          assertString(reviewBinding.mascot.promptId, 'reviewContext.bindings.mascot.promptId', source)
+        }
+      }
+
+      if (reviewBinding.illustration !== undefined) {
+        if (!isRecord(reviewBinding.illustration)) {
+          throw new Error(`${source}: reviewContext.bindings.illustration must be an object`)
+        }
+        if (reviewBinding.illustration.role !== undefined) {
+          assertString(reviewBinding.illustration.role, 'reviewContext.bindings.illustration.role', source)
+        }
+        if (reviewBinding.illustration.alt !== undefined) {
+          assertString(reviewBinding.illustration.alt, 'reviewContext.bindings.illustration.alt', source)
+        }
+        if (reviewBinding.illustration.assetRef !== undefined) {
+          assertString(reviewBinding.illustration.assetRef, 'reviewContext.bindings.illustration.assetRef', source)
+        }
       }
     }
   }
@@ -445,6 +592,10 @@ export function buildAtlasImportSummary(
       missing,
       failed,
     } : undefined,
+    reviewContext: manifest.reviewContext ? {
+      sources: manifest.reviewContext.sources.length,
+      bindings: manifest.reviewContext.bindings.length,
+    } : undefined,
     transformed: [
       'Atlas manifest references into Sentinel compatibility summaries and review indexes',
       'Atlas session artifact records into Sentinel dashboard inputs',
@@ -453,12 +604,14 @@ export function buildAtlasImportSummary(
       'Atlas local ids',
       'Atlas-derived fully-qualified ids where consumers need global uniqueness',
       'Atlas artifact paths as produced by Atlas',
+      'Brandie review metadata references resolved by Atlas',
     ],
     atlasOwned: [
       'manifest authoring',
       'capture orchestration',
       'artifact naming',
       'path and scenario semantics',
+      'binding product surfaces to Brandie review packs',
     ],
   }
 }

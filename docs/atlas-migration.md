@@ -15,6 +15,12 @@ Atlas owns:
 - artifact identity and indexing
 - entry-strategy semantics
 - local colon-based ids and the safe-key storage mapping used on disk
+- optional binding of Brandie review-pack metadata onto Atlas surfaces and scenarios
+
+Brandie owns:
+- review-pack authoring
+- mascot, illustration, and tone defaults
+- product-specific review-pack overrides
 
 ## Migration Phases
 
@@ -24,6 +30,7 @@ Atlas owns:
 
 2. Compatibility phase
 - Products add Atlas manifests and session indexes while keeping legacy catalog inputs alive.
+- Products using Brandie can let Atlas attach optional `reviewContext` bindings that point back to Brandie packs.
 - Sentinel consumes Atlas fixtures through:
   - `sentinel catalog:index --atlas-manifest ... --session-index ...`
   - `sentinel catalog:validate --atlas-manifest ... --session-index ...`
@@ -45,6 +52,7 @@ Atlas owns:
 - Reusing raw colon ids directly as filesystem path segments instead of Atlas safe keys.
 - Keeping package scripts on bare `catalog:index` / `catalog:validate` while claiming Atlas migration is active.
 - Treating Maestro as the default entry path instead of a fallback behind deterministic harness entry.
+- Letting Sentinel invent Brandie bindings instead of passing Atlas-resolved references through the manifest.
 
 ## Recommended Scripts
 

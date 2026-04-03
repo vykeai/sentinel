@@ -246,6 +246,13 @@ npx --no-install sentinel catalog:validate \
   --session-index examples/atlas/session-index.fitkind-mobile.v1.json
 ```
 
+Products using Brandie-backed review packs can let Atlas attach optional `reviewContext` metadata to the manifest. Sentinel treats that as Atlas-resolved compatibility metadata, not a new Sentinel-owned authoring format:
+- Brandie owns review-pack authoring and brand defaults
+- Atlas owns the binding from product surfaces/scenarios to Brandie references
+- Sentinel preserves and inspects the resolved references without becoming the authoring system
+
+See the brand-aware fixture in [manifest.fitkind-brand-aware.v1.json](/Users/luke/dev/onlytools/sentinel/examples/atlas/manifest.fitkind-brand-aware.v1.json) and the boundary notes in [atlas-compatibility.md](/Users/luke/dev/onlytools/sentinel/docs/atlas-compatibility.md).
+
 ### Configuration
 
 ```yaml

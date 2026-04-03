@@ -58,11 +58,60 @@ Atlas owns:
 - target and artifact naming
 - capture session lifecycle and orchestration
 
+Brandie owns:
+- review-pack authoring
+- brand defaults, mascot references, illustration guidance, and tone rules
+- product-specific review-pack overrides for scenario families
+
+Atlas may optionally resolve Brandie review packs onto its own surfaces and scenarios. Sentinel preserves and inspects those Atlas-resolved references, but it does not author Brandie packs and it does not choose brand treatments itself.
+
 ## Fixture Examples
 
 - Atlas manifest fixture: [`../examples/atlas/manifest.fitkind-mobile.v1.json`](../examples/atlas/manifest.fitkind-mobile.v1.json)
+- Brand-aware Atlas manifest fixture: [`../examples/atlas/manifest.fitkind-brand-aware.v1.json`](../examples/atlas/manifest.fitkind-brand-aware.v1.json)
 - Legacy catalog fixture: [`../examples/atlas/legacy-catalog.fitkind.json`](../examples/atlas/legacy-catalog.fitkind.json)
 - Session capture index fixture: [`../examples/atlas/session-index.fitkind-mobile.v1.json`](../examples/atlas/session-index.fitkind-mobile.v1.json)
+- Brand-aware session capture index fixture: [`../examples/atlas/session-index.fitkind-brand-aware.v1.json`](../examples/atlas/session-index.fitkind-brand-aware.v1.json)
+
+## Brand-Aware Review Context
+
+Atlas can optionally attach a `reviewContext` block to a manifest after it resolves Brandie review-pack data onto product surfaces and scenarios.
+
+Sentinel expects that split to stay explicit:
+- Brandie owns review-pack authoring and source assets
+- Atlas owns the binding from product `surfaceId` / `scenarioId` to Brandie references
+- Sentinel consumes the Atlas-resolved result and may diagnose drift later, but does not become the authoring system
+
+Example:
+
+```json
+{
+  "reviewContext": {
+    "owner": "atlas",
+    "sources": [
+      {
+        "id": "brandie:fitkind.review-pack",
+        "kind": "brandie-review-pack",
+        "contractPath": "brands/brandie/review-assets/contract.json",
+        "packId": "fitkind.review-pack",
+        "packPath": "brands/brandie/review-assets/packs/fitkind.json"
+      }
+    ],
+    "bindings": [
+      {
+        "id": "journey:empty-state:brandie-review",
+        "sourceId": "brandie:fitkind.review-pack",
+        "surfaceId": "journey:empty-state",
+        "scenarioId": "journey:list:empty-journey",
+        "sourceKind": "scenario-override",
+        "atlasNamespaceRef": "atlas.fitkind.journey.progress-photos-empty"
+      }
+    ]
+  }
+}
+```
+
+Sentinel currently treats this as optional compatibility metadata. Products that do not use Brandie-backed review packs should continue to validate cleanly without it.
 
 ## Identity Contract
 

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "atlas.session-index/v1",
+  "manifestPath": "examples/atlas/manifest.fitkind-brand-aware.v1.json",
+  "captures": [
+    {
+      "pathId": "main:journey:list",
+      "surfaceId": "journey:list",
+      "scenarioId": "journey:list:default",
+      "targetId": "ios:iphone15pro:light:en-gb",
+      "entryStrategyId": "journey:list:deeplink",
+      "artifactKind": "screenshot",
+      "fileName": "frame-001.png",
+      "artifactPath": "artifacts/fitkind/main__journey__list/journey__list/journey__list__default/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
+      "capturedAt": "2026-04-03T10:58:00.000Z",
+      "status": "captured"
+    },
+    {
+      "pathId": "main:journey:list",
+      "surfaceId": "journey:list",
+      "scenarioId": "journey:list:default",
+      "targetId": "android:pixel8:light:en-gb",
+      "entryStrategyId": "journey:list:deeplink",
+      "artifactKind": "screenshot",
+      "fileName": "frame-001.png",
+      "artifactPath": "artifacts/fitkind/main__journey__list/journey__list/journey__list__default/android__pixel8__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
+      "capturedAt": "2026-04-03T10:58:01.000Z",
+      "status": "captured"
+    },
+    {
+      "pathId": "main:journey:list",
+      "surfaceId": "journey:empty-state",
+      "scenarioId": "journey:list:empty-journey",
+      "targetId": "ios:iphone15pro:light:en-gb",
+      "entryStrategyId": "journey:list:deeplink",
+      "artifactKind": "screenshot",
+      "fileName": "frame-001.png",
+      "artifactPath": "artifacts/fitkind/main__journey__list/journey__empty-state/journey__list__empty-journey/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
+      "capturedAt": "2026-04-03T10:58:02.000Z",
+      "status": "missing"
+    }
+  ]
+}

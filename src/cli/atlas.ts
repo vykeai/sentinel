@@ -70,6 +70,9 @@ export function cmdAtlasImport(): void {
   if (summary.sessionIndex) {
     console.log(`  session captures: ${summary.sessionIndex.captures} (${summary.sessionIndex.captured} captured, ${summary.sessionIndex.missing} missing, ${summary.sessionIndex.failed} failed)`)
   }
+  if (summary.reviewContext) {
+    console.log(`  review context: ${summary.reviewContext.sources} source${summary.reviewContext.sources === 1 ? '' : 's'}, ${summary.reviewContext.bindings} binding${summary.reviewContext.bindings === 1 ? '' : 's'}`)
+  }
   console.log(chalk.dim('\n  Sentinel transforms'))
   summary.transformed.forEach((item) => console.log(`    - ${item}`))
   console.log(chalk.dim('\n  Sentinel preserves'))
