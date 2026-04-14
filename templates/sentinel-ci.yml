@@ -54,11 +54,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Build sentinel's TypeScript source so the CLI entry point works without tsx loader
-      - name: Build sentinel
-        run: npx tsc --project node_modules/sentinel/tsconfig.json
-        continue-on-error: true  # Skip if sentinel ships pre-compiled dist/
-
       # ─── Schema checks ────────────────────────────────────────────────────
 
       - name: Generate platform files
