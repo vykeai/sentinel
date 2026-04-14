@@ -30,7 +30,7 @@ describe('atlas validation', () => {
   })
 
   it('builds expected Atlas artifacts from surfaces, scenarios, and targets', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-app.v1.json')
     const expected = buildExpectedAtlasArtifacts(manifest)
 
     expect(expected).toHaveLength(5)
@@ -45,8 +45,8 @@ describe('atlas validation', () => {
 
   it('classifies coverage drift, artifact mismatch, and parity units for Atlas captures', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-validate-'))
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-mobile.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-app.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-app.v1.json')
     materializeCapturedArtifacts(dir, sessionIndex)
 
     const result = validateAtlasCatalog(manifest, sessionIndex, dir)
@@ -67,8 +67,8 @@ describe('atlas validation', () => {
   })
 
   it('reports adapter misuse explicitly when session data violates the manifest', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-mobile.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-app.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-app.v1.json')
     const invalid = JSON.parse(JSON.stringify(sessionIndex)) as AtlasSessionCaptureIndex
     invalid.captures[0].surfaceId = 'journey:unknown'
     invalid.captures[0].artifactPath = invalid.captures[0].artifactPath.replace(
@@ -87,8 +87,8 @@ describe('atlas validation', () => {
 
   it('classifies missing review metadata separately when Brandie bindings have no payload', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-validate-'))
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-brand-aware.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-brand.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-brand.v1.json')
     materializeCapturedArtifacts(dir, sessionIndex)
 
     const hydratedSession = JSON.parse(JSON.stringify(sessionIndex)) as AtlasSessionCaptureIndex
@@ -116,8 +116,8 @@ describe('atlas validation', () => {
 
   it('reports mixed screenshot and review-metadata failures in the same Atlas validation pass', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-validate-'))
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-brand-aware.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-brand.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-brand.v1.json')
     materializeCapturedArtifacts(dir, sessionIndex)
 
     const metadataMissingManifest = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture

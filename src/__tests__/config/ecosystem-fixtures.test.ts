@@ -25,11 +25,11 @@ describe('ecosystem sentinel fixtures', () => {
     expect(exported.surfaces).toEqual([])
   })
 
-  it('exports FitKind-style launch-arg flows into compatibility surfaces', () => {
-    const config = loadConfig(path.join(fixtureRoot, 'fitkind.sentinel.yaml'))
+  it('exports launch-arg flows into compatibility surfaces', () => {
+    const config = loadConfig(path.join(fixtureRoot, 'example-app.sentinel.yaml'))
     const exported = buildLegacyAtlasExport(config.catalog!)
 
-    expect(config.catalog?.android?.phone?.app_ids?.dev).toBe('app.fitkind.dev')
+    expect(config.catalog?.android?.phone?.app_ids?.dev).toBe('app.example-app.dev')
     expect(exported.surfaces.map((surface) => surface.id)).toEqual(['welcome', 'journey', 'analytics'])
     expect(exported.surfaces[0].scenarios[0].entry).toEqual({
       strategy: 'maestro_flow',
@@ -38,12 +38,12 @@ describe('ecosystem sentinel fixtures', () => {
     expect(exported.surfaces[2].legacy?.flow).toContain('--screen=analytics')
   })
 
-  it('exports Sitches-style sparse screens as manual-upload compatibility surfaces', () => {
-    const config = loadConfig(path.join(fixtureRoot, 'sitches.sentinel.yaml'))
+  it('exports sparse screens as manual-upload compatibility surfaces', () => {
+    const config = loadConfig(path.join(fixtureRoot, 'example-shop.sentinel.yaml'))
     const exported = buildLegacyAtlasExport(config.catalog!)
 
     expect(config.platforms.google?.path).toBe('./google')
-    expect(config.catalog?.android?.phone?.app_id).toBe('app.sitches.ios.dev')
+    expect(config.catalog?.android?.phone?.app_id).toBe('app.example-shop.dev')
     expect(exported.surfaces.map((surface) => surface.id)).toEqual(['welcome', 'browse', 'chat', 'profile'])
     expect(exported.surfaces.every((surface) => surface.scenarios[0].entry.strategy === 'manual_upload')).toBe(true)
   })

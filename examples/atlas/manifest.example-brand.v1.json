@@ -1,9 +1,9 @@
 {
   "schemaVersion": "atlas.manifest/v1",
   "metadata": {
-    "manifestId": "fitkind.mobile.catalog.brand-aware.v1",
-    "productId": "fitkind",
-    "productName": "FitKind",
+    "manifestId": "example-app.mobile.catalog.brand-aware.v1",
+    "productId": "example-app",
+    "productName": "ExampleApp",
     "platformFamily": "mobile",
     "owner": "design-systems",
     "description": "Example Atlas manifest fixture showing how Atlas can bind Brandie review metadata without giving Sentinel ownership of the brand system.",
@@ -110,22 +110,22 @@
     "owner": "atlas",
     "sources": [
       {
-        "id": "brandie:fitkind.review-pack",
+        "id": "brandie:example-app.review-pack",
         "kind": "brandie-review-pack",
         "contractPath": "brands/brandie/review-assets/contract.json",
-        "packId": "fitkind.review-pack",
-        "packPath": "brands/brandie/review-assets/packs/fitkind.json",
+        "packId": "example-app.review-pack",
+        "packPath": "brands/brandie/review-assets/packs/example-app.json",
         "brandReference": "brands/brandie/review-assets/contract.json#brandDefaults"
       }
     ],
     "bindings": [
       {
         "id": "journey:empty-state:brandie-review",
-        "sourceId": "brandie:fitkind.review-pack",
+        "sourceId": "brandie:example-app.review-pack",
         "surfaceId": "journey:empty-state",
         "scenarioId": "journey:list:empty-journey",
         "sourceKind": "scenario-override",
-        "atlasNamespaceRef": "atlas.fitkind.journey.progress-photos-empty",
+        "atlasNamespaceRef": "atlas.example-app.journey.progress-photos-empty",
         "surfaceFamily": "journey",
         "reviewState": "empty",
         "assetKind": "empty-state",

@@ -16,11 +16,11 @@ import {
 
 describe('atlas compatibility contracts', () => {
   it('derives qualified ids and filesystem-safe artifact keys from local Atlas ids', () => {
-    expect(buildQualifiedAtlasId('fitkind', 'journey:list')).toBe('fitkind:journey:list')
-    expect(buildQualifiedAtlasId('fitkind', 'fitkind:journey:list')).toBe('fitkind:journey:list')
+    expect(buildQualifiedAtlasId('myapp', 'journey:list')).toBe('myapp:journey:list')
+    expect(buildQualifiedAtlasId('myapp', 'myapp:journey:list')).toBe('myapp:journey:list')
     expect(deriveAtlasArtifactKey('main:journey:list')).toBe('main__journey__list')
     expect(deriveAtlasArtifactKey('ios:iphone15pro:light:en-gb')).toBe('ios__iphone15pro__light__en-gb')
-    expect(buildAtlasArtifactPath('fitkind', {
+    expect(buildAtlasArtifactPath('myapp', {
       pathId: 'main:journey:list',
       surfaceId: 'journey:list',
       scenarioId: 'journey:list:default',
@@ -29,7 +29,7 @@ describe('atlas compatibility contracts', () => {
       artifactKind: 'screenshot',
       fileName: 'frame-001.png',
     })).toBe(
-      'artifacts/fitkind/main__journey__list/journey__list/journey__list__default/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png',
+      'artifacts/myapp/main__journey__list/journey__list/journey__list__default/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png',
     )
   })
 
@@ -47,8 +47,8 @@ describe('atlas compatibility contracts', () => {
   })
 
   it('validates Atlas manifest and session fixtures and builds an import summary', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-mobile.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-app.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-app.v1.json')
 
     validateAtlasManifestFixture(manifest, 'manifest fixture')
     validateAtlasSessionCaptureIndex(sessionIndex, 'session fixture')
@@ -61,16 +61,16 @@ describe('atlas compatibility contracts', () => {
   })
 
   it('accepts optional Brandie-backed review context while keeping ownership explicit', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-brand-aware.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-brand.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-brand.v1.json')
 
     validateAtlasManifestFixture(manifest, 'brand-aware manifest fixture')
     validateAtlasSessionCaptureIndex(sessionIndex, 'brand-aware session fixture')
     validateAtlasFixtureSet(manifest, sessionIndex, 'brand-aware fixture set')
 
-    expect(manifest.reviewContext?.sources[0]?.packId).toBe('fitkind.review-pack')
+    expect(manifest.reviewContext?.sources[0]?.packId).toBe('example-app.review-pack')
     expect(manifest.reviewContext?.bindings[0]?.surfaceId).toBe('journey:empty-state')
-    expect(manifest.reviewContext?.bindings[0]?.atlasNamespaceRef).toBe('atlas.fitkind.journey.progress-photos-empty')
+    expect(manifest.reviewContext?.bindings[0]?.atlasNamespaceRef).toBe('atlas.example-app.journey.progress-photos-empty')
 
     const summary = buildAtlasImportSummary(manifest, sessionIndex)
     expect(summary.reviewContext).toEqual({
@@ -82,7 +82,7 @@ describe('atlas compatibility contracts', () => {
   })
 
   it('rejects manifest surface references that do not exist', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-app.v1.json')
     const invalid = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture
     invalid.surfaces[0].targetIds = ['ios:unknown:light:en-gb']
 
@@ -92,11 +92,11 @@ describe('atlas compatibility contracts', () => {
   })
 
   it('rejects unsafe artifact paths and manifest/session mismatches', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-mobile.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-app.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-app.v1.json')
 
     const unsafe = JSON.parse(JSON.stringify(sessionIndex)) as AtlasSessionCaptureIndex
-    unsafe.captures[0].artifactPath = 'artifacts/fitkind/main__journey__list/../outside/journey__list__default/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png'
+    unsafe.captures[0].artifactPath = 'artifacts/example-app/main__journey__list/../outside/journey__list__default/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png'
     expect(() => validateAtlasSessionCaptureIndex(unsafe, 'unsafe session fixture')).toThrow(/unsafe session fixture: capture\.artifactPath/)
 
     const mismatched = JSON.parse(JSON.stringify(sessionIndex)) as AtlasSessionCaptureIndex
@@ -110,7 +110,7 @@ describe('atlas compatibility contracts', () => {
   })
 
   it('rejects Brandie review bindings that point at unknown Atlas surfaces or scenarios', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-brand-aware.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-brand.v1.json')
     const invalid = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture
     invalid.reviewContext!.bindings[0].surfaceId = 'journey:unknown'
 
@@ -120,8 +120,8 @@ describe('atlas compatibility contracts', () => {
   })
 
   it('builds a migration plan that keeps legacy capture and Atlas handoff responsibilities explicit', () => {
-    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.fitkind-mobile.v1.json')
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.fitkind-mobile.v1.json')
+    const manifest = readJsonFixture<AtlasManifestFixture>('examples/atlas/manifest.example-app.v1.json')
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>('examples/atlas/session-index.example-app.v1.json')
 
     const plan = buildAtlasMigrationPlan({
       output: 'catalog/',
@@ -129,7 +129,7 @@ describe('atlas compatibility contracts', () => {
     }, manifest, sessionIndex)
 
     expect(plan.legacyExport?.surfaces.length).toBe(1)
-    expect(plan.atlasImport?.manifest.manifestId).toBe('fitkind.mobile.catalog.v1')
+    expect(plan.atlasImport?.manifest.manifestId).toBe('example-app.mobile.catalog.v1')
     expect(plan.atlasOwned).toContain('capture session lifecycle')
   })
 })

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "atlas.session-index/v1",
-  "manifestPath": "examples/atlas/manifest.fitkind-brand-aware.v1.json",
+  "manifestPath": "examples/atlas/manifest.example-brand.v1.json",
   "captures": [
     {
       "pathId": "main:journey:list",
@@ -10,7 +10,7 @@
       "entryStrategyId": "journey:list:deeplink",
       "artifactKind": "screenshot",
       "fileName": "frame-001.png",
-      "artifactPath": "artifacts/fitkind/main__journey__list/journey__list/journey__list__default/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
+      "artifactPath": "artifacts/example-app/main__journey__list/journey__list/journey__list__default/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
       "capturedAt": "2026-04-03T10:58:00.000Z",
       "status": "captured"
     },
@@ -22,7 +22,7 @@
       "entryStrategyId": "journey:list:deeplink",
       "artifactKind": "screenshot",
       "fileName": "frame-001.png",
-      "artifactPath": "artifacts/fitkind/main__journey__list/journey__list/journey__list__default/android__pixel8__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
+      "artifactPath": "artifacts/example-app/main__journey__list/journey__list/journey__list__default/android__pixel8__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
       "capturedAt": "2026-04-03T10:58:01.000Z",
       "status": "captured"
     },
@@ -34,7 +34,7 @@
       "entryStrategyId": "journey:list:deeplink",
       "artifactKind": "screenshot",
       "fileName": "frame-001.png",
-      "artifactPath": "artifacts/fitkind/main__journey__list/journey__empty-state/journey__list__empty-journey/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
+      "artifactPath": "artifacts/example-app/main__journey__list/journey__empty-state/journey__list__empty-journey/ios__iphone15pro__light__en-gb/journey__list__deeplink/screenshot/frame-001.png",
       "capturedAt": "2026-04-03T10:58:02.000Z",
       "status": "missing"
     }

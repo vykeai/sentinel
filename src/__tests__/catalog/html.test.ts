@@ -41,8 +41,8 @@ describe('catalog html', () => {
   it('renders Atlas artifacts by path, surface, scenario, and target', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-html-'))
     const outputDir = path.join(dir, 'catalog')
-    const manifest = readJsonFixture<AtlasManifestFixture>(path.join(process.cwd(), 'examples/atlas/manifest.fitkind-mobile.v1.json'))
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>(path.join(process.cwd(), 'examples/atlas/session-index.fitkind-mobile.v1.json'))
+    const manifest = readJsonFixture<AtlasManifestFixture>(path.join(process.cwd(), 'examples/atlas/manifest.example-app.v1.json'))
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>(path.join(process.cwd(), 'examples/atlas/session-index.example-app.v1.json'))
 
     const captured = sessionIndex.captures.filter((capture) => capture.status === 'captured')
     for (const capture of captured) {
@@ -59,7 +59,7 @@ describe('catalog html', () => {
     expect(html).toContain('Default list')
     expect(html).toContain('iPhone 15 Pro')
     expect(html).toContain('frame-001.png')
-    expect(html).toContain('<img src="../artifacts/fitkind/')
+    expect(html).toContain('<img src="../artifacts/example-app/')
     expect(html).toContain('MISSING')
     expect(html).not.toContain('Brandie review context')
   })
@@ -67,8 +67,8 @@ describe('catalog html', () => {
   it('renders Brandie review context as secondary metadata when Atlas review bindings are present', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-html-'))
     const outputDir = path.join(dir, 'catalog')
-    const manifest = readJsonFixture<AtlasManifestFixture>(path.join(process.cwd(), 'examples/atlas/manifest.fitkind-brand-aware.v1.json'))
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>(path.join(process.cwd(), 'examples/atlas/session-index.fitkind-brand-aware.v1.json'))
+    const manifest = readJsonFixture<AtlasManifestFixture>(path.join(process.cwd(), 'examples/atlas/manifest.example-brand.v1.json'))
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>(path.join(process.cwd(), 'examples/atlas/session-index.example-brand.v1.json'))
 
     const captured = sessionIndex.captures.filter((capture) => capture.status === 'captured')
     for (const capture of captured) {
@@ -81,7 +81,7 @@ describe('catalog html', () => {
 
     const html = fs.readFileSync(path.join(outputDir, 'index.html'), 'utf-8')
     expect(html).toContain('Brandie review context')
-    expect(html).toContain('fitkind.review-pack')
+    expect(html).toContain('example-app.review-pack')
     expect(html).toContain('No progress photos yet')
     expect(html).toContain('Hue inspects an empty progress timeline')
     expect(html).toContain('MISSING')
@@ -90,8 +90,8 @@ describe('catalog html', () => {
   it('escapes dynamic Atlas content before writing HTML', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-atlas-html-'))
     const outputDir = path.join(dir, 'catalog')
-    const manifest = readJsonFixture<AtlasManifestFixture>(path.join(process.cwd(), 'examples/atlas/manifest.fitkind-mobile.v1.json'))
-    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>(path.join(process.cwd(), 'examples/atlas/session-index.fitkind-mobile.v1.json'))
+    const manifest = readJsonFixture<AtlasManifestFixture>(path.join(process.cwd(), 'examples/atlas/manifest.example-app.v1.json'))
+    const sessionIndex = readJsonFixture<AtlasSessionCaptureIndex>(path.join(process.cwd(), 'examples/atlas/session-index.example-app.v1.json'))
     const escapedManifest = JSON.parse(JSON.stringify(manifest)) as AtlasManifestFixture
 
     escapedManifest.surfaces[0].title = '<img src=x onerror=alert(1)>'

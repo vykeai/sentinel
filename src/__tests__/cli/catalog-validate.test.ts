@@ -18,8 +18,8 @@ describe('catalog:validate cli', () => {
 
   it('reports Atlas validation failures with classified output', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-catalog-validate-'))
-    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.fitkind-mobile.v1.json')
-    const sessionIndexPath = path.join(process.cwd(), 'examples/atlas/session-index.fitkind-mobile.v1.json')
+    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.example-app.v1.json')
+    const sessionIndexPath = path.join(process.cwd(), 'examples/atlas/session-index.example-app.v1.json')
     const sessionIndex = JSON.parse(
       fs.readFileSync(sessionIndexPath, 'utf-8'),
     ) as AtlasSessionCaptureIndex
@@ -53,10 +53,10 @@ describe('catalog:validate cli', () => {
 
   it('passes Atlas validation when all expected artifacts exist', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-catalog-validate-'))
-    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.fitkind-mobile.v1.json')
+    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.example-app.v1.json')
     const sessionIndexPath = path.join(dir, 'session-index.json')
     const sessionIndex = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), 'examples/atlas/session-index.fitkind-mobile.v1.json'), 'utf-8'),
+      fs.readFileSync(path.join(process.cwd(), 'examples/atlas/session-index.example-app.v1.json'), 'utf-8'),
     ) as AtlasSessionCaptureIndex
 
     sessionIndex.captures = [
@@ -69,7 +69,7 @@ describe('catalog:validate cli', () => {
         entryStrategyId: 'journey:list:deeplink',
         artifactKind: 'screenshot',
         fileName: 'frame-001.png',
-        artifactPath: buildAtlasArtifactPath('fitkind', {
+        artifactPath: buildAtlasArtifactPath('example-app', {
           pathId: 'main:journey:list',
           surfaceId: 'journey:list',
           scenarioId: 'journey:list:empty-journey',
@@ -89,7 +89,7 @@ describe('catalog:validate cli', () => {
         entryStrategyId: 'journey:list:deeplink',
         artifactKind: 'screenshot',
         fileName: 'frame-001.png',
-        artifactPath: buildAtlasArtifactPath('fitkind', {
+        artifactPath: buildAtlasArtifactPath('example-app', {
           pathId: 'main:journey:list',
           surfaceId: 'journey:list',
           scenarioId: 'journey:list:empty-journey',

@@ -14,8 +14,8 @@ describe('catalog:index cli', () => {
   it('renders the Atlas dashboard through the production catalog:index command', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-catalog-index-'))
     const outputDir = path.join(dir, 'dashboard')
-    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.fitkind-mobile.v1.json')
-    const sessionIndexPath = path.join(process.cwd(), 'examples/atlas/session-index.fitkind-mobile.v1.json')
+    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.example-app.v1.json')
+    const sessionIndexPath = path.join(process.cwd(), 'examples/atlas/session-index.example-app.v1.json')
 
     execFileSync(
       process.execPath,

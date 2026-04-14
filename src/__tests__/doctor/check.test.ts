@@ -24,7 +24,7 @@ describe('runDoctorCheck', () => {
     const packsDir = path.join(reviewAssetsDir, 'packs')
     fs.mkdirSync(packsDir, { recursive: true })
     fs.writeFileSync(path.join(reviewAssetsDir, 'contract.json'), JSON.stringify(contract, null, 2))
-    fs.writeFileSync(path.join(packsDir, 'fitkind.json'), JSON.stringify(pack, null, 2))
+    fs.writeFileSync(path.join(packsDir, 'example-app.json'), JSON.stringify(pack, null, 2))
     return brandieRoot
   }
 
@@ -62,10 +62,10 @@ describe('runDoctorCheck', () => {
       'catalog:validate': 'sentinel catalog:validate',
     })
 
-    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.fitkind-mobile.v1.json')
+    const manifestPath = path.join(process.cwd(), 'examples/atlas/manifest.example-app.v1.json')
     const invalidSessionPath = path.join(dir, 'session-index.invalid.json')
     const sessionIndex = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), 'examples/atlas/session-index.fitkind-mobile.v1.json'), 'utf8'),
+      fs.readFileSync(path.join(process.cwd(), 'examples/atlas/session-index.example-app.v1.json'), 'utf8'),
     ) as AtlasSessionCaptureIndex
     sessionIndex.captures[0].targetId = 'ios:invalid:light:en-gb'
     sessionIndex.captures[0].artifactPath = sessionIndex.captures[0].artifactPath.replace(
@@ -91,8 +91,8 @@ describe('runDoctorCheck', () => {
     })
 
     const result = runDoctorCheck(dir, '@sentinel/cli', {
-      atlasManifestPath: path.join(process.cwd(), 'examples/atlas/manifest.fitkind-brand-aware.v1.json'),
-      sessionIndexPath: path.join(process.cwd(), 'examples/atlas/session-index.fitkind-brand-aware.v1.json'),
+      atlasManifestPath: path.join(process.cwd(), 'examples/atlas/manifest.example-brand.v1.json'),
+      sessionIndexPath: path.join(process.cwd(), 'examples/atlas/session-index.example-brand.v1.json'),
     })
 
     expect(result.passed).toBe(true)
@@ -111,18 +111,18 @@ describe('runDoctorCheck', () => {
       {
         reviewPacks: [
           {
-            packId: 'fitkind.review-pack',
-            packPath: 'brands/brandie/review-assets/packs/fitkind-renamed.json',
+            packId: 'example-app.review-pack',
+            packPath: 'brands/brandie/review-assets/packs/example-app-renamed.json',
           },
         ],
       },
       {
-        packId: 'fitkind.review-pack.v2',
+        packId: 'example-app.review-pack.v2',
         scenarioFamilies: [
           {
             scenarioOverrides: [
               {
-                atlasSurfaceId: 'atlas.fitkind.journey.some-other-empty-state',
+                atlasSurfaceId: 'atlas.example-app.journey.some-other-empty-state',
               },
             ],
           },
@@ -131,8 +131,8 @@ describe('runDoctorCheck', () => {
     )
 
     const result = runDoctorCheck(dir, '@sentinel/cli', {
-      atlasManifestPath: path.join(process.cwd(), 'examples/atlas/manifest.fitkind-brand-aware.v1.json'),
-      sessionIndexPath: path.join(process.cwd(), 'examples/atlas/session-index.fitkind-brand-aware.v1.json'),
+      atlasManifestPath: path.join(process.cwd(), 'examples/atlas/manifest.example-brand.v1.json'),
+      sessionIndexPath: path.join(process.cwd(), 'examples/atlas/session-index.example-brand.v1.json'),
       brandieRoot,
     })
 

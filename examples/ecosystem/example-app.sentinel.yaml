@@ -1,5 +1,5 @@
 sentinel: "1.0"
-project: fitkind
+project: example-app
 version: "1.0.0"
 location: ./sentinel
 
@@ -8,17 +8,17 @@ platforms:
     path: ./apple
     language: swift
     output:
-      tokens: ./apple/FitKind/DesignSystem/Tokens/FitKindTokens.swift
-      strings: ./apple/FitKind/Resources/Strings.swift
-      flags: ./apple/FitKind/Core/FeatureFlags.swift
+      tokens: ./apple/ExampleApp/DesignSystem/Tokens/ExampleAppTokens.swift
+      strings: ./apple/ExampleApp/Resources/Strings.swift
+      flags: ./apple/ExampleApp/Core/FeatureFlags.swift
 
   google:
     path: ./google
     language: kotlin
     output:
-      tokens: ./google/app/src/main/kotlin/com/fitkind/design/FitKindTokens.kt
+      tokens: ./google/app/src/main/kotlin/com/example/app/design/ExampleAppTokens.kt
       strings: ./google/app/src/main/res/values/strings.xml
-      flags: ./google/app/src/main/kotlin/com/fitkind/core/FeatureFlags.kt
+      flags: ./google/app/src/main/kotlin/com/example/app/core/FeatureFlags.kt
 
   web-admin:
     path: ./web-admin
@@ -43,36 +43,36 @@ catalog:
   resize: 1000
   ios18:
     iphone:
-      slug: fitkind-ios
-      app_id: com.fitkind.app
+      slug: example-app-ios
+      app_id: com.example.app
   ios26:
     iphone:
-      slug: fitkind-ios26
-      app_id: com.fitkind.app
+      slug: example-app-ios26
+      app_id: com.example.app
       glossy: true
   android:
     phone:
-      slug: fitkind-android
+      slug: example-app-android
       app_ids:
-        dev: app.fitkind.dev
-        stage: app.fitkind.stage
-        prod: app.fitkind
+        dev: app.example-app.dev
+        stage: app.example-app.stage
+        prod: app.example-app
   screens:
     - slug: welcome
       name: Welcome
       flow: |
         - launchApp:
-            appId: com.fitkind.app
+            appId: com.example.app
             arguments: ["--screen=welcome"]
     - slug: journey
       name: Journey
       flow: |
         - launchApp:
-            appId: com.fitkind.app
+            appId: com.example.app
             arguments: ["--tab=journey"]
     - slug: analytics
       name: Analytics
       flow: |
         - launchApp:
-            appId: com.fitkind.app
+            appId: com.example.app
             arguments: ["--tab=journey", "--screen=analytics"]

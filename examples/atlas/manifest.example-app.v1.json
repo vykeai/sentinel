@@ -1,9 +1,9 @@
 {
   "schemaVersion": "atlas.manifest/v1",
   "metadata": {
-    "manifestId": "fitkind.mobile.catalog.v1",
-    "productId": "fitkind",
-    "productName": "FitKind",
+    "manifestId": "example-app.mobile.catalog.v1",
+    "productId": "example-app",
+    "productName": "ExampleApp",
     "platformFamily": "mobile",
     "owner": "design-systems",
     "description": "Example Atlas manifest fixture consumed by Sentinel's compatibility layer.",

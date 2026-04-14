@@ -1,0 +1,47 @@
+sentinel: "1.0"
+project: example-shop
+version: "1.0.0"
+location: ./sentinel
+
+platforms:
+  apple:
+    path: ./apple
+    language: swift
+    output:
+      tokens: ./apple/ExampleShop/DesignSystem/Tokens/AppTokens.swift
+      strings: ./apple/ExampleShop/Resources/Strings.swift
+      flags: ./apple/ExampleShop/Core/FeatureFlags.swift
+
+  google:
+    path: ./google
+    language: kotlin
+    output:
+      tokens: ./google/app/src/main/kotlin/app/example/shop/design/tokens/AppTokens.kt
+      strings: ./google/app/src/main/res/values/strings-generated.xml
+      flags: ./google/app/src/main/kotlin/app/example/shop/core/FeatureFlags.kt
+
+catalog:
+  output: catalog/
+  resize: 1000
+  ios18:
+    iphone:
+      slug: example-shop-ios
+      app_id: app.example-shop.dev
+  ios26:
+    iphone:
+      slug: example-shop-ios26
+      app_id: app.example-shop.dev
+      glossy: true
+  android:
+    phone:
+      slug: example-shop-android
+      app_id: app.example-shop.dev
+  screens:
+    - slug: welcome
+      name: Welcome
+    - slug: browse
+      name: Browse
+    - slug: chat
+      name: Chat
+    - slug: profile
+      name: Profile
