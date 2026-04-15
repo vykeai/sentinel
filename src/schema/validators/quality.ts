@@ -22,7 +22,7 @@ export async function checkQuality(
   if (config.tests) {
     checked++
     try {
-      execSync(config.tests, { cwd: projectRoot, stdio: 'pipe', timeout: 120_000 })
+      execSync(config.tests, { cwd: projectRoot, stdio: 'pipe', timeout: 1_800_000 })
     } catch (e: unknown) {
       const stderr = e instanceof Error && 'stderr' in e
         ? String((e as { stderr: Buffer }).stderr).slice(0, 500)
@@ -79,7 +79,7 @@ export async function checkQuality(
   if (config.build) {
     checked++
     try {
-      execSync(config.build, { cwd: projectRoot, stdio: 'pipe', timeout: 180_000 })
+      execSync(config.build, { cwd: projectRoot, stdio: 'pipe', timeout: 1_800_000 })
     } catch (e: unknown) {
       const stderr = e instanceof Error && 'stderr' in e
         ? String((e as { stderr: Buffer }).stderr).slice(0, 500)
