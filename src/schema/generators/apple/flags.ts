@@ -22,7 +22,7 @@ export function generateAppleFlags(config: ResolvedConfig): void {
     `  private init() {}`,
     ``,
     `  // MARK: — Remote override (set from API response or local debug)`,
-    `  private static var overrides: [String: Bool] = [:]`,
+    `  nonisolated(unsafe) private static var overrides: [String: Bool] = [:]`,
     ``,
     `  public static func override(_ key: String, enabled: Bool) {`,
     `    overrides[key] = enabled`,
