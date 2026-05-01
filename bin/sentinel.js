@@ -6,6 +6,7 @@
  * tsx is bundled in sentinel's own node_modules, so this works regardless
  * of what the parent project has installed.
  */
+process.title = 'sentinel'
 import { spawn } from 'child_process'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
