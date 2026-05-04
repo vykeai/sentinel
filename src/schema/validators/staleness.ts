@@ -29,40 +29,40 @@ export function checkStaleness(config: ResolvedConfig): ValidationResult {
     checks.push({
       label: 'api/errors',
       schema: errorsSchema,
-      output: path.resolve(config.projectRoot, config.platforms.api.output.errors),
+      output: resolveOutputPath(config, config.platforms.api.output.errors),
     })
   }
 
   if (config.platforms.apple) {
     const { tokens, strings, flags, errors } = config.platforms.apple.output
-    if (tokens)  checks.push({ label: 'apple/tokens',  schema: tokensSchema,  output: path.resolve(config.projectRoot, tokens) })
-    if (strings) checks.push({ label: 'apple/strings', schema: stringsSchema, output: path.resolve(config.projectRoot, strings) })
-    if (flags)   checks.push({ label: 'apple/flags',   schema: flagsSchema,   output: path.resolve(config.projectRoot, flags) })
-    if (errors)  checks.push({ label: 'apple/errors',  schema: errorsSchema,  output: path.resolve(config.projectRoot, errors) })
+    if (tokens)  checks.push({ label: 'apple/tokens',  schema: tokensSchema,  output: resolveOutputPath(config, tokens) })
+    if (strings) checks.push({ label: 'apple/strings', schema: stringsSchema, output: resolveOutputPath(config, strings) })
+    if (flags)   checks.push({ label: 'apple/flags',   schema: flagsSchema,   output: resolveOutputPath(config, flags) })
+    if (errors)  checks.push({ label: 'apple/errors',  schema: errorsSchema,  output: resolveOutputPath(config, errors) })
   }
 
   if (config.platforms.google) {
     const { tokens, strings, flags, errors } = config.platforms.google.output
-    if (tokens)  checks.push({ label: 'google/tokens',  schema: tokensSchema,  output: path.resolve(config.projectRoot, tokens) })
-    if (strings) checks.push({ label: 'google/strings', schema: stringsSchema, output: path.resolve(config.projectRoot, strings) })
-    if (flags)   checks.push({ label: 'google/flags',   schema: flagsSchema,   output: path.resolve(config.projectRoot, flags) })
-    if (errors)  checks.push({ label: 'google/errors',  schema: errorsSchema,  output: path.resolve(config.projectRoot, errors) })
+    if (tokens)  checks.push({ label: 'google/tokens',  schema: tokensSchema,  output: resolveOutputPath(config, tokens) })
+    if (strings) checks.push({ label: 'google/strings', schema: stringsSchema, output: resolveOutputPath(config, strings) })
+    if (flags)   checks.push({ label: 'google/flags',   schema: flagsSchema,   output: resolveOutputPath(config, flags) })
+    if (errors)  checks.push({ label: 'google/errors',  schema: errorsSchema,  output: resolveOutputPath(config, errors) })
   }
 
   const webPlatform = config.platforms.web ?? config.platforms['web-admin']
   if (webPlatform) {
     const { tokens, strings, flags, errors } = webPlatform.output
-    if (tokens)  checks.push({ label: 'web/tokens',  schema: tokensSchema,  output: path.resolve(config.projectRoot, tokens) })
-    if (strings) checks.push({ label: 'web/strings', schema: stringsSchema, output: path.resolve(config.projectRoot, strings) })
-    if (flags)   checks.push({ label: 'web/flags',   schema: flagsSchema,   output: path.resolve(config.projectRoot, flags) })
-    if (errors)  checks.push({ label: 'web/errors',  schema: errorsSchema,  output: path.resolve(config.projectRoot, errors) })
+    if (tokens)  checks.push({ label: 'web/tokens',  schema: tokensSchema,  output: resolveOutputPath(config, tokens) })
+    if (strings) checks.push({ label: 'web/strings', schema: stringsSchema, output: resolveOutputPath(config, strings) })
+    if (flags)   checks.push({ label: 'web/flags',   schema: flagsSchema,   output: resolveOutputPath(config, flags) })
+    if (errors)  checks.push({ label: 'web/errors',  schema: errorsSchema,  output: resolveOutputPath(config, errors) })
   }
 
   if (config.platforms['web-public']?.output?.errors) {
     checks.push({
       label: 'web-public/errors',
       schema: errorsSchema,
-      output: path.resolve(config.projectRoot, config.platforms['web-public'].output.errors),
+      output: resolveOutputPath(config, config.platforms['web-public'].output.errors),
     })
   }
 
@@ -120,4 +120,15 @@ export function checkStaleness(config: ResolvedConfig): ValidationResult {
     durationMs: Math.round(performance.now() - start),
     checkedCount: checks.length,
   }
+}
+
+function resolveOutputPath(config: ResolvedConfig, configuredPath: string): string {
+  const output = path.isAbsolute(configuredPath)
+    ? path.normalize(configuredPath)
+    : path.resolve(config.projectRoot, configuredPath)
+  const relative = path.relative(config.projectRoot, output)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Configured generated output escapes project root: ${configuredPath}`)
+  }
+  return output
 }

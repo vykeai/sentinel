@@ -25,7 +25,15 @@ function makeConfig(): { config: ResolvedConfig; dir: string } {
         httpStatus: 401,
         translationKey: 'apiErrors.auth.invalidCode',
         translations: {
-          en: 'That code is not valid.',
+          en: 'That code is not valid.\nTry again for $0.',
+        },
+      },
+      {
+        code: 'INTERNAL',
+        httpStatus: 500,
+        translationKey: 'apiErrors.internal',
+        translations: {
+          en: 'Something went wrong.',
         },
       },
     ],
@@ -97,10 +105,13 @@ describe('api error generator', () => {
     const swift = fs.readFileSync(fixture.config.platforms.apple!.output.errors!, 'utf-8')
     expect(swift).toContain('public enum SentinelApiErrorCode')
     expect(swift).toContain('case authInvalidCode = "AUTH_INVALID_CODE"')
+    expect(swift).toContain('case internalCode = "INTERNAL"')
+    expect(swift).toContain('That code is not valid.\\nTry again for $0.')
 
     const kotlin = fs.readFileSync(fixture.config.platforms.google!.output.errors!, 'utf-8')
     expect(kotlin).toContain('package com.testapp')
     expect(kotlin).toContain('AuthInvalidCode("AUTH_INVALID_CODE"')
+    expect(kotlin).toContain('That code is not valid.\\nTry again for \\$0.')
 
     const webPublic = fs.readFileSync(fixture.config.platforms['web-public']!.output.errors!, 'utf-8')
     expect(webPublic).toContain('apiErrorCatalog')
@@ -129,5 +140,36 @@ describe('api error generator', () => {
     expect(errors).toContain("errors.json: errors[1]: duplicate code 'AUTH_INVALID_CODE'")
     expect(errors).toContain('errors.json: errors[1]: httpStatus must be an integer HTTP status')
     expect(errors).toContain("errors.json: errors[1]: duplicate translationKey 'apiErrors.auth.invalidCode'")
+  })
+
+  it('rejects codes that would produce unsafe generated identifiers', () => {
+    const errors = validateApiErrorsSchema('errors.json', {
+      locales: ['en'],
+      errors: [
+        {
+          code: '404_NOT_FOUND',
+          httpStatus: 404,
+          translationKey: 'apiErrors.bad.leadingDigit',
+          translations: { en: 'Not found.' },
+        },
+        {
+          code: 'BAD__REQUEST',
+          httpStatus: 400,
+          translationKey: 'apiErrors.bad.repeatedUnderscore',
+          translations: { en: 'Bad request.' },
+        },
+      ],
+    })
+
+    expect(errors).toContain('errors.json: errors[0]: code must be an uppercase stable key with no leading digit or repeated underscores')
+    expect(errors).toContain('errors.json: errors[1]: code must be an uppercase stable key with no leading digit or repeated underscores')
+  })
+
+  it('rejects generated output paths outside the project root', () => {
+    const fixture = makeConfig()
+    dir = fixture.dir
+    fixture.config.platforms.api!.output!.errors = path.join(fixture.dir, '..', 'api-errors.ts')
+
+    expect(() => generateApiErrors(fixture.config)).toThrow(/escapes project root/)
   })
 })
