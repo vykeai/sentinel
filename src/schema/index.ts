@@ -12,6 +12,7 @@ import { generateGoogleNavigation } from './generators/google/navigation.js'
 import { generateWebTokens } from './generators/web/tokens.js'
 import { generateWebStrings } from './generators/web/strings.js'
 import { generateWebFlags } from './generators/web/flags.js'
+import { generateApiErrors } from './generators/shared/errors.js'
 import { detectDrift } from './validators/drift.js'
 import { checkStaleness } from './validators/staleness.js'
 import { checkCompleteness } from './validators/completeness.js'
@@ -43,6 +44,8 @@ export async function generateAll(config: ResolvedConfig): Promise<void> {
     generateWebStrings(config)
     generateWebFlags(config)
   }
+
+  generateApiErrors(config)
 }
 
 export async function validateAll(config: ResolvedConfig): Promise<ValidationResult[]> {

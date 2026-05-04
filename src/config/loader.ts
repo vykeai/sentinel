@@ -89,6 +89,7 @@ function normalizePlatformAliases(platforms: SentinelInputPlatformMap | undefine
   if (platforms.android ?? platforms.google) normalized.google = platforms.android ?? platforms.google
   if (platforms.web) normalized.web = platforms.web
   if (platforms['web-admin']) normalized['web-admin'] = platforms['web-admin']
+  if (platforms['web-public']) normalized['web-public'] = platforms['web-public']
   if (platforms.desktop) normalized.desktop = platforms.desktop
 
   return normalized

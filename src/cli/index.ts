@@ -20,6 +20,7 @@ import { join, dirname, basename, relative, resolve, sep } from 'path'
 import chalk from 'chalk'
 import { findConfigFile, loadConfig } from '../config/loader.js'
 import { generateAll } from '../schema/index.js'
+import { validateApiErrorsSchema } from '../schema/generators/shared/errors.js'
 import { checkInvariants } from '../schema/validators/invariants.js'
 import { checkStaleness } from '../schema/validators/staleness.js'
 import { checkQuality } from '../schema/validators/quality.js'
@@ -160,6 +161,10 @@ function cmdValidate(): StatusReport {
           errors.push(`${filename}: missing 'locales' array`)
         if (typeof schema['strings'] !== 'object')
           errors.push(`${filename}: missing 'strings' object`)
+        break
+
+      case 'api-errors':
+        errors.push(...validateApiErrorsSchema(filename, schema))
         break
 
       case 'feature-flags':

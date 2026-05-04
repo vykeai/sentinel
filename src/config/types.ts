@@ -5,7 +5,7 @@ export type SentinelVersion = '1.0'
 
 export type Language = 'typescript' | 'python' | 'swift' | 'kotlin' | 'go'
 export type Framework = 'nestjs' | 'fastapi' | 'express' | 'nextjs' | 'nuxt' | 'rails'
-export type PlatformKey = 'api' | 'apple' | 'google' | 'web' | 'web-admin' | 'desktop'
+export type PlatformKey = 'api' | 'apple' | 'google' | 'web' | 'web-admin' | 'web-public' | 'desktop'
 export type PlatformAliasKey = 'ios' | 'android'
 
 // ─── Platform Configs ─────────────────────────────────────────────────────────
@@ -15,6 +15,9 @@ export interface ApiPlatformConfig {
   language: Language
   framework?: Framework
   openapi?: string           // path to openapi.json, or sentinel auto-discovers
+  output?: {
+    errors?: string
+  }
 }
 
 export interface ApplePlatformConfig {
@@ -26,6 +29,7 @@ export interface ApplePlatformConfig {
     flags?: string
     models?: string
     mock?: string
+    errors?: string
   }
 }
 
@@ -38,6 +42,7 @@ export interface GooglePlatformConfig {
     flags?: string
     models?: string
     mock?: string
+    errors?: string
   }
 }
 
@@ -50,6 +55,7 @@ export interface WebPlatformConfig {
     strings?: string
     flags?: string
     models?: string
+    errors?: string
   }
 }
 
@@ -156,6 +162,7 @@ export type SentinelPlatformMap = Partial<{
   google: GooglePlatformConfig
   web: WebPlatformConfig
   'web-admin': WebPlatformConfig
+  'web-public': WebPlatformConfig
   desktop: ApplePlatformConfig
 }>
 
@@ -262,6 +269,22 @@ export interface StringsSchema {
   version: string
   locales: string[]
   strings: Record<string, string | Record<string, string>>  // key → value or key → { locale: value }
+}
+
+export interface ApiErrorEntry {
+  code: string
+  httpStatus: number
+  translationKey: string
+  translations: Record<string, string>
+  description?: string
+}
+
+export interface ApiErrorsSchema {
+  $sentinel: SentinelVersion
+  type: 'api-errors'
+  version: string
+  locales: string[]
+  errors: ApiErrorEntry[]
 }
 
 export interface FeatureFlagsSchema {

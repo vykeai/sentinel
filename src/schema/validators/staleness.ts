@@ -23,27 +23,47 @@ export function checkStaleness(config: ResolvedConfig): ValidationResult {
   const tokensSchema = path.join(config.designDir, 'tokens.json')
   const stringsSchema = path.join(config.designDir, 'strings.json')
   const flagsSchema = path.join(config.platformDir, 'feature-flags.json')
+  const errorsSchema = path.join(config.platformDir, 'errors.json')
+
+  if (config.platforms.api?.output?.errors) {
+    checks.push({
+      label: 'api/errors',
+      schema: errorsSchema,
+      output: path.resolve(config.projectRoot, config.platforms.api.output.errors),
+    })
+  }
 
   if (config.platforms.apple) {
-    const { tokens, strings, flags } = config.platforms.apple.output
+    const { tokens, strings, flags, errors } = config.platforms.apple.output
     if (tokens)  checks.push({ label: 'apple/tokens',  schema: tokensSchema,  output: path.resolve(config.projectRoot, tokens) })
     if (strings) checks.push({ label: 'apple/strings', schema: stringsSchema, output: path.resolve(config.projectRoot, strings) })
     if (flags)   checks.push({ label: 'apple/flags',   schema: flagsSchema,   output: path.resolve(config.projectRoot, flags) })
+    if (errors)  checks.push({ label: 'apple/errors',  schema: errorsSchema,  output: path.resolve(config.projectRoot, errors) })
   }
 
   if (config.platforms.google) {
-    const { tokens, strings, flags } = config.platforms.google.output
+    const { tokens, strings, flags, errors } = config.platforms.google.output
     if (tokens)  checks.push({ label: 'google/tokens',  schema: tokensSchema,  output: path.resolve(config.projectRoot, tokens) })
     if (strings) checks.push({ label: 'google/strings', schema: stringsSchema, output: path.resolve(config.projectRoot, strings) })
     if (flags)   checks.push({ label: 'google/flags',   schema: flagsSchema,   output: path.resolve(config.projectRoot, flags) })
+    if (errors)  checks.push({ label: 'google/errors',  schema: errorsSchema,  output: path.resolve(config.projectRoot, errors) })
   }
 
   const webPlatform = config.platforms.web ?? config.platforms['web-admin']
   if (webPlatform) {
-    const { tokens, strings, flags } = webPlatform.output
+    const { tokens, strings, flags, errors } = webPlatform.output
     if (tokens)  checks.push({ label: 'web/tokens',  schema: tokensSchema,  output: path.resolve(config.projectRoot, tokens) })
     if (strings) checks.push({ label: 'web/strings', schema: stringsSchema, output: path.resolve(config.projectRoot, strings) })
     if (flags)   checks.push({ label: 'web/flags',   schema: flagsSchema,   output: path.resolve(config.projectRoot, flags) })
+    if (errors)  checks.push({ label: 'web/errors',  schema: errorsSchema,  output: path.resolve(config.projectRoot, errors) })
+  }
+
+  if (config.platforms['web-public']?.output?.errors) {
+    checks.push({
+      label: 'web-public/errors',
+      schema: errorsSchema,
+      output: path.resolve(config.projectRoot, config.platforms['web-public'].output.errors),
+    })
   }
 
   for (const check of checks) {
