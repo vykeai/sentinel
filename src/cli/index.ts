@@ -37,6 +37,7 @@ import {
   type SentinelArtifactRef,
   type SentinelProofContext,
 } from './gate-result.js'
+import { discoverSentinelRepo } from './discovery.js'
 import { cmdAtlasExport, cmdAtlasImport, cmdAtlasMigrate } from './atlas.js'
 import type { PlatformKey, ResolvedConfig } from '../config/types.js'
 import type { AtlasManifestFixture, AtlasSessionCaptureIndex } from '../catalog/atlas-compat.js'
@@ -1392,6 +1393,13 @@ function cmdGateRun(): void {
   if (result.verdict === 'failed') process.exit(1)
 }
 
+function cmdDiscover(): void {
+  const args = process.argv.slice(3)
+  const cwd = argValue(args, '--cwd') ?? process.cwd()
+  const result = discoverSentinelRepo(resolve(cwd))
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+}
+
 // ---------------------------------------------------------------------------
 // CLI entry point
 // ---------------------------------------------------------------------------
@@ -1417,6 +1425,7 @@ const writeStatusPath = parseWriteStatus();
     case 'atlas:export':     cmdAtlasExport(); break
     case 'atlas:migrate':    cmdAtlasMigrate(); break
     case 'registry:scan':    cmdRegistryScan(); break
+    case 'discover':         cmdDiscover(); break
     case 'gate:plan':        cmdGatePlan(); break
     case 'gate:run':         cmdGateRun(); break
     case 'quality:check': {
@@ -1437,7 +1446,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
       process.exit(1)
     }
 

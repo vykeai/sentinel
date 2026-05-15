@@ -26,6 +26,7 @@ Sentinel is a CLI tool that keeps your design tokens, strings, feature flags, mo
 | `sentinel atlas:export` | Exports legacy `catalog.screens` data into a surface-based migration fixture |
 | `sentinel atlas:migrate` | Writes an explicit migration plan showing what Sentinel transforms versus what Atlas owns |
 | `sentinel registry:scan` | Finds screen files in the codebase not registered in `sentinel.yaml` |
+| `sentinel discover` | Emits Codeuctor-readable Sentinel config and gate inventory for a repo |
 | `sentinel chaos` | Runs chaos scenarios (network, auth, data, payment, platform) |
 | `sentinel flows` | Runs Maestro and Playwright end-to-end flows |
 | `sentinel visual` | Runs visual parity checks across platforms |
@@ -73,9 +74,16 @@ Codeuctor should use the machine-readable gate surface instead of scraping
 terminal output:
 
 ```bash
+sentinel discover --cwd /path/to/repo
 sentinel gate:plan --repo-type api --task-type api
 sentinel gate:run --kind schema --json
 ```
+
+`discover` emits `sentinel.discovery.v1` with config status, configured
+platforms, available capabilities, gate descriptors, required inputs, and replay
+commands. Repos without `sentinel.yaml`, `sentinel.yml`, or `sentinel.json`
+return `status: "not-configured"` with exit code 0 so Codeuctor can inventory
+mixed estates without treating missing Sentinel adoption as a failure.
 
 `gate:run` emits `sentinel.gate-result.v1` with the gate kind, verdict,
 failure class (`gate-failed` or `visual-invalid`), artifact references, duration,
