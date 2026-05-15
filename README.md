@@ -31,6 +31,8 @@ Sentinel is a CLI tool that keeps your design tokens, strings, feature flags, mo
 | `sentinel visual` | Runs visual parity checks across platforms |
 | `sentinel perf` | Runs performance benchmarks |
 | `sentinel brain` | AI-powered issue analysis across all sentinel results |
+| `sentinel gate:plan` | Emits Codeuctor-readable gate selection JSON for a repo/task type |
+| `sentinel gate:run` | Emits Codeuctor-readable gate result JSON with verdict, failures, artifacts, duration, and replay command |
 | `sentinel all` | Runs validate → generate → mock:generate |
 
 ---
@@ -64,6 +66,20 @@ In `package.json` scripts, prefer the local bin directly:
   }
 }
 ```
+
+## Codeuctor Gate Output
+
+Codeuctor should use the machine-readable gate surface instead of scraping
+terminal output:
+
+```bash
+sentinel gate:plan --repo-type api --task-type api
+sentinel gate:run --kind schema --json
+```
+
+`gate:run` emits `sentinel.gate-result.v1` with the gate kind, verdict,
+failure class (`gate-failed` or `visual-invalid`), artifact references, duration,
+and replay command.
 
 ---
 

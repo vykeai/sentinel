@@ -28,6 +28,7 @@ import { checkMockIntegration, findFixturePathCandidates } from '../mock/integra
 import { runDoctorCheck } from '../doctor/check.js'
 import { buildFeatureMatrix, printMatrix } from '../contracts/feature-matrix.js'
 import { formatWarningSummary } from './warnings.js'
+import { buildGateResult, selectGateKinds, type CodeuctorGateKind } from './gate-result.js'
 import { cmdAtlasExport, cmdAtlasImport, cmdAtlasMigrate } from './atlas.js'
 import type { PlatformKey, ResolvedConfig } from '../config/types.js'
 import type { AtlasManifestFixture, AtlasSessionCaptureIndex } from '../catalog/atlas-compat.js'
@@ -83,6 +84,51 @@ function writeStatusFile(path: string, report: StatusReport): void {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(path, JSON.stringify(report, null, 2) + '\n', 'utf8')
   console.log(`  status written to ${path}`)
+}
+
+function artifactRefsFromArgs(args: string[]): Array<{ kind: string; path: string }> {
+  const refs: Array<{ kind: string; path: string }> = []
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--artifact' && args[i + 1]) {
+      refs.push({ kind: 'artifact', path: args[i + 1] })
+    }
+  }
+  return refs
+}
+
+function statusReportIssues(kind: CodeuctorGateKind, report: StatusReport): import('../config/types.js').ValidationIssue[] {
+  const issues: import('../config/types.js').ValidationIssue[] = []
+  for (const schema of report.schemas) {
+    for (const error of schema.errors) {
+      issues.push({
+        severity: 'error',
+        layer: 'schema',
+        rule: 'schema-invalid',
+        message: error,
+      })
+    }
+  }
+  for (const contract of report.contracts) {
+    if (!contract.passing) {
+      issues.push({
+        severity: 'error',
+        layer: 'contracts',
+        rule: 'contract-failed',
+        message: `Contract failed: ${contract.name}`,
+      })
+    }
+  }
+  for (const mock of report.mocks) {
+    if (!mock.coverage) {
+      issues.push({
+        severity: 'error',
+        layer: kind === 'visual' ? 'visual' : 'mock',
+        rule: kind === 'visual' ? 'visual-invalid' : 'mock-invalid',
+        message: `Gate failed: ${mock.endpoint}`,
+      })
+    }
+  }
+  return issues
 }
 
 function emptyReport(): StatusReport {
@@ -1227,6 +1273,72 @@ async function cmdQualityCheck(): Promise<boolean> {
   return result.passed
 }
 
+function cmdGatePlan(): void {
+  const args = process.argv.slice(3)
+  const repoType = args.find((_, i) => args[i - 1] === '--repo-type')
+  const taskType = args.find((_, i) => args[i - 1] === '--task-type')
+  const configured = args
+    .map((value, index) => (args[index - 1] === '--kind' ? value as CodeuctorGateKind : null))
+    .filter((value): value is CodeuctorGateKind => value !== null)
+  const gates = selectGateKinds({ repoType, taskType, configured })
+  process.stdout.write(JSON.stringify({
+    schemaVersion: 'sentinel.gate-plan.v1',
+    repoType: repoType ?? null,
+    taskType: taskType ?? null,
+    gates,
+  }, null, 2) + '\n')
+}
+
+function cmdGateRun(): void {
+  const args = process.argv.slice(3)
+  const kind = (args.find((_, i) => args[i - 1] === '--kind') ?? 'schema') as CodeuctorGateKind
+  const jsonMode = args.includes('--json')
+  const started = performance.now()
+  const command = ['sentinel', 'gate:run', '--kind', kind, ...(jsonMode ? ['--json'] : [])]
+  const artifactRefs = artifactRefsFromArgs(args)
+
+  const run = () => {
+    switch (kind) {
+      case 'schema': return cmdValidate()
+      case 'contracts': return cmdContracts()
+      case 'mock': return cmdMockValidate()
+      default:
+        throw new Error(`Unsupported gate: ${kind}. Supported: schema, contracts, mock`)
+    }
+  }
+
+  let report: StatusReport
+  if (jsonMode) {
+    const original = { log: console.log, warn: console.warn, error: console.error }
+    console.log = () => undefined
+    console.warn = () => undefined
+    console.error = () => undefined
+    try {
+      report = run()
+    } finally {
+      console.log = original.log
+      console.warn = original.warn
+      console.error = original.error
+    }
+  } else {
+    report = run()
+  }
+
+  const issues = statusReportIssues(kind, report)
+  const result = buildGateResult({
+    kind,
+    command,
+    passed: issues.length === 0,
+    issues,
+    durationMs: Math.round(performance.now() - started),
+    checkedCount: report.schemas.length + report.contracts.length + report.mocks.length,
+    artifactRefs,
+  })
+
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+  if (result.verdict === 'failed') process.exit(1)
+}
+
 // ---------------------------------------------------------------------------
 // CLI entry point
 // ---------------------------------------------------------------------------
@@ -1252,6 +1364,8 @@ const writeStatusPath = parseWriteStatus();
     case 'atlas:export':     cmdAtlasExport(); break
     case 'atlas:migrate':    cmdAtlasMigrate(); break
     case 'registry:scan':    cmdRegistryScan(); break
+    case 'gate:plan':        cmdGatePlan(); break
+    case 'gate:run':         cmdGateRun(); break
     case 'quality:check': {
       const passed = await cmdQualityCheck()
       if (!passed) process.exit(1)
@@ -1270,7 +1384,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock> [--json] [--artifact <path>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
       process.exit(1)
     }
 
