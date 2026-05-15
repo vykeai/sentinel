@@ -33,7 +33,7 @@ import { formatWarningSummary } from './warnings.js'
 import {
   buildGateResult,
   selectGateKinds,
-  type CodeuctorGateKind,
+  type GateKind,
   type SentinelArtifactRef,
   type SentinelProofContext,
 } from './gate-result.js'
@@ -127,7 +127,7 @@ function currentCommit(): string | undefined {
   }
 }
 
-function statusReportIssues(kind: CodeuctorGateKind, report: StatusReport): import('../config/types.js').ValidationIssue[] {
+function statusReportIssues(kind: GateKind, report: StatusReport): import('../config/types.js').ValidationIssue[] {
   const issues: import('../config/types.js').ValidationIssue[] = []
   for (const schema of report.schemas) {
     for (const error of schema.errors) {
@@ -1320,8 +1320,8 @@ function cmdGatePlan(): void {
   const repoType = args.find((_, i) => args[i - 1] === '--repo-type')
   const taskType = args.find((_, i) => args[i - 1] === '--task-type')
   const configured = args
-    .map((value, index) => (args[index - 1] === '--kind' ? value as CodeuctorGateKind : null))
-    .filter((value): value is CodeuctorGateKind => value !== null)
+    .map((value, index) => (args[index - 1] === '--kind' ? value as GateKind : null))
+    .filter((value): value is GateKind => value !== null)
   const gates = selectGateKinds({ repoType, taskType, configured })
   process.stdout.write(JSON.stringify({
     schemaVersion: 'sentinel.gate-plan.v1',
@@ -1333,7 +1333,7 @@ function cmdGatePlan(): void {
 
 function cmdGateRun(): void {
   const args = process.argv.slice(3)
-  const kind = (args.find((_, i) => args[i - 1] === '--kind') ?? 'schema') as CodeuctorGateKind
+  const kind = (args.find((_, i) => args[i - 1] === '--kind') ?? 'schema') as GateKind
   const jsonMode = args.includes('--json')
   const started = performance.now()
   const command = ['sentinel', 'gate:run', '--kind', kind, ...(jsonMode ? ['--json'] : [])]

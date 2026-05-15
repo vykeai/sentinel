@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { findConfigFile, getSentinelPaths, loadConfig } from '../config/loader.js'
 import type { ResolvedConfig, SentinelPlatformMap } from '../config/types.js'
-import type { CodeuctorGateKind } from './gate-result.js'
+import type { GateKind } from './gate-result.js'
 
 export type SentinelDiscoveryStatus = 'configured' | 'not-configured'
 
@@ -14,12 +14,12 @@ export interface SentinelDiscoveryInput {
 }
 
 export interface SentinelDiscoveryGate {
-  kind: CodeuctorGateKind
+  kind: GateKind
   configured: boolean
   reason: string
   inputs: SentinelDiscoveryInput[]
   replayCommand: string | null
-  codeuctorRunnable: boolean
+  automationRunnable: boolean
 }
 
 export interface SentinelDiscoveryResult {
@@ -45,7 +45,7 @@ const CAPABILITIES = [
   'sentinel.gate-result.v1',
 ]
 
-const CODEUCTOR_RUNNABLE_GATES = new Set<CodeuctorGateKind>(['schema', 'contracts', 'mock'])
+const AUTOMATION_RUNNABLE_GATES = new Set<GateKind>(['schema', 'contracts', 'mock'])
 
 export function discoverSentinelRepo(startDir = process.cwd()): SentinelDiscoveryResult {
   const configPath = findConfigFile(startDir)
@@ -96,7 +96,7 @@ function buildUnconfiguredGates(): SentinelDiscoveryGate[] {
     reason: 'sentinel-config-missing',
     inputs: [],
     replayCommand: null,
-    codeuctorRunnable: CODEUCTOR_RUNNABLE_GATES.has(kind),
+    automationRunnable: AUTOMATION_RUNNABLE_GATES.has(kind),
   }))
 }
 
@@ -153,26 +153,26 @@ function buildConfiguredGates(config: ResolvedConfig, configPath: string): Senti
 }
 
 function gate(
-  kind: CodeuctorGateKind,
+  kind: GateKind,
   configured: boolean,
   configuredReason: string,
   unconfiguredReason: string,
   inputs: SentinelDiscoveryInput[]
 ): SentinelDiscoveryGate {
-  const codeuctorRunnable = CODEUCTOR_RUNNABLE_GATES.has(kind)
+  const automationRunnable = AUTOMATION_RUNNABLE_GATES.has(kind)
   return {
     kind,
     configured,
     reason: configured ? configuredReason : unconfiguredReason,
     inputs,
-    replayCommand: configured ? replayCommand(kind, codeuctorRunnable) : null,
-    codeuctorRunnable,
+    replayCommand: configured ? replayCommand(kind, automationRunnable) : null,
+    automationRunnable,
   }
 }
 
-function replayCommand(kind: CodeuctorGateKind, codeuctorRunnable: boolean): string {
-  if (codeuctorRunnable) return `sentinel gate:run --kind ${kind} --json`
-  const legacyCommands: Record<CodeuctorGateKind, string> = {
+function replayCommand(kind: GateKind, automationRunnable: boolean): string {
+  if (automationRunnable) return `sentinel gate:run --kind ${kind} --json`
+  const legacyCommands: Record<GateKind, string> = {
     schema: 'sentinel gate:run --kind schema --json',
     contracts: 'sentinel gate:run --kind contracts --json',
     mock: 'sentinel gate:run --kind mock --json',
@@ -212,7 +212,7 @@ function hasAnyFile(dir: string, extensions: string[]): boolean {
   return false
 }
 
-function gateKinds(): CodeuctorGateKind[] {
+function gateKinds(): GateKind[] {
   return ['schema', 'contracts', 'mock', 'catalog', 'flow', 'visual', 'chaos', 'perf', 'doctor', 'quality']
 }
 

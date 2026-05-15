@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildGateResult, selectGateKinds } from '../../cli/gate-result.js'
 
-describe('Codeuctor gate result helpers', () => {
+describe('machine-readable gate result helpers', () => {
   it('builds a stable machine-readable gate result', () => {
     const result = buildGateResult({
       kind: 'schema',

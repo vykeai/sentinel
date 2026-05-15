@@ -15,7 +15,7 @@ export interface SentinelProofContext {
   host?: string
 }
 
-export type CodeuctorGateKind =
+export type GateKind =
   | 'schema'
   | 'contracts'
   | 'mock'
@@ -27,10 +27,10 @@ export type CodeuctorGateKind =
   | 'doctor'
   | 'quality'
 
-export type CodeuctorFailureClass = 'gate-failed' | 'visual-invalid'
+export type GateFailureClass = 'gate-failed' | 'visual-invalid'
 
-export interface CodeuctorGateFailure {
-  class: CodeuctorFailureClass
+export interface GateFailure {
+  class: GateFailureClass
   severity: string
   layer: string
   rule: string
@@ -39,7 +39,7 @@ export interface CodeuctorGateFailure {
   fix?: string
 }
 
-export interface CodeuctorGateResult {
+export interface GateResult {
   schemaVersion: 'sentinel.gate-result.v1'
   producer: 'sentinel'
   proofKind: string
@@ -50,12 +50,12 @@ export interface CodeuctorGateResult {
     artifactRefs: SentinelArtifactRef[]
   }
   gate: {
-    kind: CodeuctorGateKind
+    kind: GateKind
     command: string[]
     replayCommand: string
   }
   verdict: 'passed' | 'failed'
-  failures: CodeuctorGateFailure[]
+  failures: GateFailure[]
   artifactRefs: SentinelArtifactRef[]
   durationMs: number
   checkedCount: number
@@ -63,7 +63,7 @@ export interface CodeuctorGateResult {
 }
 
 export function buildGateResult(input: {
-  kind: CodeuctorGateKind
+  kind: GateKind
   command: string[]
   issues: ValidationIssue[]
   passed: boolean
@@ -72,7 +72,7 @@ export function buildGateResult(input: {
   artifactRefs?: SentinelArtifactRef[]
   proofKind?: string
   proofContext?: SentinelProofContext
-}): CodeuctorGateResult {
+}): GateResult {
   const proofKind = input.proofKind ?? `sentinel-${input.kind}-gate`
   return {
     schemaVersion: 'sentinel.gate-result.v1',
@@ -111,12 +111,12 @@ export function buildGateResult(input: {
 export function selectGateKinds(input: {
   repoType?: string
   taskType?: string
-  configured?: CodeuctorGateKind[]
-}): CodeuctorGateKind[] {
+  configured?: GateKind[]
+}): GateKind[] {
   if (input.configured?.length) return dedupe(input.configured)
   const repoType = input.repoType ?? ''
   const taskType = input.taskType ?? ''
-  const selected: CodeuctorGateKind[] = ['schema']
+  const selected: GateKind[] = ['schema']
 
   if (repoType === 'api' || taskType === 'api') selected.push('contracts', 'mock')
   if (repoType === 'mobile' || taskType === 'mobile') selected.push('catalog', 'flow', 'visual')
@@ -127,7 +127,7 @@ export function selectGateKinds(input: {
   return dedupe(selected)
 }
 
-function failureClass(kind: CodeuctorGateKind, issue: ValidationIssue): CodeuctorFailureClass {
+function failureClass(kind: GateKind, issue: ValidationIssue): GateFailureClass {
   if (kind === 'visual' || issue.layer.startsWith('visual')) return 'visual-invalid'
   return 'gate-failed'
 }
