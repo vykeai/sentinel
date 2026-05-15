@@ -1,5 +1,20 @@
 import type { ValidationIssue } from '../config/types.js'
 
+export interface SentinelArtifactRef {
+  kind: string
+  path: string
+  sha256: string | null
+  exists: boolean
+}
+
+export interface SentinelProofContext {
+  taskId?: string
+  repo?: string
+  commit?: string
+  currentCommit?: string
+  host?: string
+}
+
 export type CodeuctorGateKind =
   | 'schema'
   | 'contracts'
@@ -26,6 +41,14 @@ export interface CodeuctorGateFailure {
 
 export interface CodeuctorGateResult {
   schemaVersion: 'sentinel.gate-result.v1'
+  producer: 'sentinel'
+  proofKind: string
+  proofy: {
+    producer: 'sentinel'
+    proofKind: string
+    context: SentinelProofContext
+    artifactRefs: SentinelArtifactRef[]
+  }
   gate: {
     kind: CodeuctorGateKind
     command: string[]
@@ -33,7 +56,7 @@ export interface CodeuctorGateResult {
   }
   verdict: 'passed' | 'failed'
   failures: CodeuctorGateFailure[]
-  artifactRefs: Array<{ kind: string; path: string }>
+  artifactRefs: SentinelArtifactRef[]
   durationMs: number
   checkedCount: number
   generatedAt: string
@@ -46,10 +69,21 @@ export function buildGateResult(input: {
   passed: boolean
   durationMs: number
   checkedCount: number
-  artifactRefs?: Array<{ kind: string; path: string }>
+  artifactRefs?: SentinelArtifactRef[]
+  proofKind?: string
+  proofContext?: SentinelProofContext
 }): CodeuctorGateResult {
+  const proofKind = input.proofKind ?? `sentinel-${input.kind}-gate`
   return {
     schemaVersion: 'sentinel.gate-result.v1',
+    producer: 'sentinel',
+    proofKind,
+    proofy: {
+      producer: 'sentinel',
+      proofKind,
+      context: input.proofContext ?? {},
+      artifactRefs: input.artifactRefs ?? [],
+    },
     gate: {
       kind: input.kind,
       command: input.command,

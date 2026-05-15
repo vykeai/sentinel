@@ -15,6 +15,8 @@
  *   all              — validate → generate → mock:generate.
  */
 
+import { createHash } from 'crypto'
+import { execFileSync } from 'child_process'
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs'
 import { join, dirname, basename, relative, resolve, sep } from 'path'
 import chalk from 'chalk'
@@ -28,7 +30,13 @@ import { checkMockIntegration, findFixturePathCandidates } from '../mock/integra
 import { runDoctorCheck } from '../doctor/check.js'
 import { buildFeatureMatrix, printMatrix } from '../contracts/feature-matrix.js'
 import { formatWarningSummary } from './warnings.js'
-import { buildGateResult, selectGateKinds, type CodeuctorGateKind } from './gate-result.js'
+import {
+  buildGateResult,
+  selectGateKinds,
+  type CodeuctorGateKind,
+  type SentinelArtifactRef,
+  type SentinelProofContext,
+} from './gate-result.js'
 import { cmdAtlasExport, cmdAtlasImport, cmdAtlasMigrate } from './atlas.js'
 import type { PlatformKey, ResolvedConfig } from '../config/types.js'
 import type { AtlasManifestFixture, AtlasSessionCaptureIndex } from '../catalog/atlas-compat.js'
@@ -86,14 +94,36 @@ function writeStatusFile(path: string, report: StatusReport): void {
   console.log(`  status written to ${path}`)
 }
 
-function artifactRefsFromArgs(args: string[]): Array<{ kind: string; path: string }> {
-  const refs: Array<{ kind: string; path: string }> = []
+function artifactRefsFromArgs(args: string[]): SentinelArtifactRef[] {
+  const refs: SentinelArtifactRef[] = []
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--artifact' && args[i + 1]) {
-      refs.push({ kind: 'artifact', path: args[i + 1] })
+      refs.push(artifactRef(args[i + 1], 'artifact'))
     }
   }
   return refs
+}
+
+function artifactRef(path: string, kind: string): SentinelArtifactRef {
+  if (!existsSync(path)) return { kind, path, sha256: null, exists: false }
+  return {
+    kind,
+    path,
+    sha256: createHash('sha256').update(readFileSync(path)).digest('hex'),
+    exists: true,
+  }
+}
+
+function argValue(args: string[], flag: string): string | undefined {
+  return args.find((_, i) => args[i - 1] === flag)
+}
+
+function currentCommit(): string | undefined {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch {
+    return undefined
+  }
 }
 
 function statusReportIssues(kind: CodeuctorGateKind, report: StatusReport): import('../config/types.js').ValidationIssue[] {
@@ -129,6 +159,17 @@ function statusReportIssues(kind: CodeuctorGateKind, report: StatusReport): impo
     }
   }
   return issues
+}
+
+function staleCommitIssue(context: SentinelProofContext): import('../config/types.js').ValidationIssue | null {
+  if (!context.commit || !context.currentCommit || context.commit === context.currentCommit) return null
+  return {
+    severity: 'error',
+    layer: 'proof',
+    rule: 'stale-sentinel-result',
+    message: `Provided commit ${context.commit} does not match current commit ${context.currentCommit}`,
+    fix: 'Rerun Sentinel against the current commit before producing proof',
+  }
 }
 
 function emptyReport(): StatusReport {
@@ -1295,6 +1336,14 @@ function cmdGateRun(): void {
   const jsonMode = args.includes('--json')
   const started = performance.now()
   const command = ['sentinel', 'gate:run', '--kind', kind, ...(jsonMode ? ['--json'] : [])]
+  const proofKind = argValue(args, '--proof-kind') ?? `sentinel-${kind}-gate`
+  const proofContext: SentinelProofContext = {
+    taskId: argValue(args, '--task-id'),
+    repo: argValue(args, '--repo'),
+    commit: argValue(args, '--commit'),
+    currentCommit: argValue(args, '--current-commit') ?? currentCommit(),
+    host: argValue(args, '--host'),
+  }
   const artifactRefs = artifactRefsFromArgs(args)
 
   const run = () => {
@@ -1325,6 +1374,8 @@ function cmdGateRun(): void {
   }
 
   const issues = statusReportIssues(kind, report)
+  const staleIssue = staleCommitIssue(proofContext)
+  if (staleIssue) issues.push(staleIssue)
   const result = buildGateResult({
     kind,
     command,
@@ -1333,6 +1384,8 @@ function cmdGateRun(): void {
     durationMs: Math.round(performance.now() - started),
     checkedCount: report.schemas.length + report.contracts.length + report.mocks.length,
     artifactRefs,
+    proofKind,
+    proofContext,
   })
 
   process.stdout.write(JSON.stringify(result, null, 2) + '\n')
@@ -1384,7 +1437,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock> [--json] [--artifact <path>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
       process.exit(1)
     }
 

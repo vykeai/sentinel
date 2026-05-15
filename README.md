@@ -81,6 +81,12 @@ sentinel gate:run --kind schema --json
 failure class (`gate-failed` or `visual-invalid`), artifact references, duration,
 and replay command.
 
+When Codeuctor supplies `--task-id`, `--repo`, `--commit`, `--host`, and
+`--proof-kind`, the result also includes a `proofy` block with
+`producer: "sentinel"`, Proofy-distinguishable proof kind, run context, and
+artifact refs with SHA-256 hashes. If the provided commit does not match the
+current commit, Sentinel returns `stale-sentinel-result` and exits non-zero.
+
 ---
 
 ## 📁 Project structure

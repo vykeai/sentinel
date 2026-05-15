@@ -9,7 +9,15 @@ describe('Codeuctor gate result helpers', () => {
       passed: false,
       durationMs: 42,
       checkedCount: 3,
-      artifactRefs: [{ kind: 'status-json', path: 'tmp/sentinel-status.json' }],
+      proofKind: 'sentinel-schema-gate',
+      proofContext: {
+        taskId: 'SENTINEL-002',
+        repo: 'vykeai/sentinel',
+        commit: 'abc123',
+        currentCommit: 'abc123',
+        host: 'mac-studio',
+      },
+      artifactRefs: [{ kind: 'status-json', path: 'tmp/sentinel-status.json', sha256: 'abc', exists: true }],
       issues: [
         {
           severity: 'error',
@@ -23,6 +31,19 @@ describe('Codeuctor gate result helpers', () => {
     })
 
     expect(result.schemaVersion).toBe('sentinel.gate-result.v1')
+    expect(result.producer).toBe('sentinel')
+    expect(result.proofKind).toBe('sentinel-schema-gate')
+    expect(result.proofy).toMatchObject({
+      producer: 'sentinel',
+      proofKind: 'sentinel-schema-gate',
+      context: {
+        taskId: 'SENTINEL-002',
+        repo: 'vykeai/sentinel',
+        commit: 'abc123',
+        currentCommit: 'abc123',
+        host: 'mac-studio',
+      },
+    })
     expect(result.gate.kind).toBe('schema')
     expect(result.verdict).toBe('failed')
     expect(result.failures).toEqual([
@@ -36,7 +57,7 @@ describe('Codeuctor gate result helpers', () => {
         fix: 'sentinel schema:generate',
       },
     ])
-    expect(result.artifactRefs).toEqual([{ kind: 'status-json', path: 'tmp/sentinel-status.json' }])
+    expect(result.artifactRefs).toEqual([{ kind: 'status-json', path: 'tmp/sentinel-status.json', sha256: 'abc', exists: true }])
     expect(result.gate.replayCommand).toBe('sentinel schema:validate')
   })
 
