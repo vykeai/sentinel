@@ -26,11 +26,15 @@ Sentinel is a CLI tool that keeps your design tokens, strings, feature flags, mo
 | `sentinel atlas:export` | Exports legacy `catalog.screens` data into a surface-based migration fixture |
 | `sentinel atlas:migrate` | Writes an explicit migration plan showing what Sentinel transforms versus what Atlas owns |
 | `sentinel registry:scan` | Finds screen files in the codebase not registered in `sentinel.yaml` |
+| `sentinel copy:validate` | Deterministically validates changed user-facing strings from a diff or manifest |
+| `sentinel discover` | Emits machine-readable Sentinel config and gate inventory for a repo |
 | `sentinel chaos` | Runs chaos scenarios (network, auth, data, payment, platform) |
 | `sentinel flows` | Runs Maestro and Playwright end-to-end flows |
 | `sentinel visual` | Runs visual parity checks across platforms |
 | `sentinel perf` | Runs performance benchmarks |
 | `sentinel brain` | AI-powered issue analysis across all sentinel results |
+| `sentinel gate:plan` | Emits machine-readable gate selection JSON for a repo/task type |
+| `sentinel gate:run` | Emits machine-readable gate result JSON with verdict, failures, artifacts, duration, and replay command |
 | `sentinel all` | Runs validate → generate → mock:generate |
 
 ---
@@ -64,6 +68,41 @@ In `package.json` scripts, prefer the local bin directly:
   }
 }
 ```
+
+## Machine-Readable Gate Output
+
+Automation clients should use the machine-readable gate surface instead of scraping
+terminal output:
+
+```bash
+sentinel discover --cwd /path/to/repo
+sentinel gate:plan --repo-type api --task-type api
+sentinel gate:run --kind schema --json
+sentinel gate:run --kind copy --diff-file /tmp/change.diff --requestor agent-runner --json
+```
+
+`discover` emits `sentinel.discovery.v1` with config status, configured
+platforms, available capabilities, gate descriptors, required inputs, and replay
+commands. Repos without `sentinel.yaml`, `sentinel.yml`, or `sentinel.json`
+return `status: "not-configured"` with exit code 0 so automation clients can inventory
+mixed estates without treating missing Sentinel adoption as a failure.
+
+`gate:run` emits `sentinel.gate-result.v1` with the gate kind, verdict,
+failure class (`gate-failed` or `visual-invalid`), artifact references, duration,
+and replay command.
+
+`copy:validate` emits `sentinel.copy-validation.v1` and can be run directly or
+through `gate:run --kind copy`. It accepts a git diff (`--base/--head` or
+`--diff-file`) or a configured manifest (`--manifest`) and returns deterministic
+findings with `file`, `line`, `ruleId`, `severity`, and message fields. Callers
+can pass `--requestor <slug>` for attribution; Sentinel records the slug without
+knowing what product or harness invoked it.
+
+When automation clients supply `--task-id`, `--repo`, `--commit`, `--host`, and
+`--proof-kind`, the result also includes a `proofy` block with
+`producer: "sentinel"`, Proofy-distinguishable proof kind, run context, and
+artifact refs with SHA-256 hashes. If the provided commit does not match the
+current commit, Sentinel returns `stale-sentinel-result` and exits non-zero.
 
 ---
 

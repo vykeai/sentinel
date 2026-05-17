@@ -57,6 +57,7 @@ export function fileToSlug(filename: string): string {
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', '.build', 'DerivedData',
   'catalog', 'sentinel', '.gradle', 'Pods', 'xcuserdata',
+  '.worktrees', '.pytest_cache', '.ruff_cache',
 ])
 
 // Directory names that contain components, not screens — skip *View files here
