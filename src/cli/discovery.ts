@@ -43,9 +43,10 @@ const CAPABILITIES = [
   'sentinel.discovery.v1',
   'sentinel.gate-plan.v1',
   'sentinel.gate-result.v1',
+  'sentinel.copy-validation.v1',
 ]
 
-const AUTOMATION_RUNNABLE_GATES = new Set<GateKind>(['schema', 'contracts', 'mock'])
+const AUTOMATION_RUNNABLE_GATES = new Set<GateKind>(['schema', 'contracts', 'mock', 'copy'])
 
 export function discoverSentinelRepo(startDir = process.cwd()): SentinelDiscoveryResult {
   const configPath = findConfigFile(startDir)
@@ -121,6 +122,10 @@ function buildConfiguredGates(config: ResolvedConfig, configPath: string): Senti
       input(join(paths.platform, 'mock-config.json'), true, 'Mock fixture routing schema'),
       input(join(config.sentinelDir, 'fixtures'), true, 'Mock fixture JSON directory'),
     ]),
+    gate('copy', true, 'diff-or-manifest-input-supported', 'sentinel-config-missing', [
+      input('git diff or --diff-file', false, 'Changed user-facing strings from a git diff'),
+      input('copy manifest', false, 'Optional manifest containing strings or files to validate'),
+    ]),
     gate('catalog', Boolean(config.catalog), 'catalog-config-present', 'catalog-config-missing', [
       input(config.catalog ? join(config.projectRoot, config.catalog.output) : join(config.projectRoot, 'sentinel-catalog'), true, 'Catalog output directory'),
       input(paths.visual.baselines, false, 'Legacy visual baseline directory'),
@@ -183,6 +188,7 @@ function replayCommand(kind: GateKind, automationRunnable: boolean): string {
     perf: 'sentinel perf',
     doctor: 'sentinel doctor --json',
     quality: 'sentinel quality:check --json',
+    copy: 'sentinel gate:run --kind copy --json',
   }
   return legacyCommands[kind]
 }
@@ -213,7 +219,7 @@ function hasAnyFile(dir: string, extensions: string[]): boolean {
 }
 
 function gateKinds(): GateKind[] {
-  return ['schema', 'contracts', 'mock', 'catalog', 'flow', 'visual', 'chaos', 'perf', 'doctor', 'quality']
+  return ['schema', 'contracts', 'mock', 'copy', 'catalog', 'flow', 'visual', 'chaos', 'perf', 'doctor', 'quality']
 }
 
 function isConfigKey(path: string): boolean {

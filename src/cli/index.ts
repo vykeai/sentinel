@@ -30,6 +30,7 @@ import { checkMockIntegration, findFixturePathCandidates } from '../mock/integra
 import { runDoctorCheck } from '../doctor/check.js'
 import { buildFeatureMatrix, printMatrix } from '../contracts/feature-matrix.js'
 import { formatWarningSummary } from './warnings.js'
+import { validateCopy, type CopyValidationResult } from './copy-validation.js'
 import {
   buildGateResult,
   selectGateKinds,
@@ -80,6 +81,7 @@ interface StatusReport {
   schemas: Array<{ name: string; valid: boolean; errors: string[] }>
   contracts: Array<{ name: string; passing: boolean }>
   mocks: Array<{ endpoint: string; coverage: boolean }>
+  copy?: CopyValidationResult
 }
 
 function parseWriteStatus(): string | null {
@@ -158,6 +160,16 @@ function statusReportIssues(kind: GateKind, report: StatusReport): import('../co
         message: `Gate failed: ${mock.endpoint}`,
       })
     }
+  }
+  for (const finding of report.copy?.findings ?? []) {
+    if (finding.severity === 'pass') continue
+    issues.push({
+      severity: finding.severity === 'fail' ? 'error' : 'warning',
+      layer: 'copy',
+      rule: finding.ruleId,
+      message: finding.message,
+      file: finding.file,
+    })
   }
   return issues
 }
@@ -1259,6 +1271,39 @@ function cmdRegistryScan(): void {
 }
 
 // ---------------------------------------------------------------------------
+// copy:validate
+// ---------------------------------------------------------------------------
+
+function cmdCopyValidate(): StatusReport {
+  const args = process.argv.slice(3)
+  const jsonMode = args.includes('--json')
+  const result = validateCopy({
+    cwd: argValue(args, '--cwd') ?? process.cwd(),
+    requestor: argValue(args, '--requestor'),
+    base: argValue(args, '--base'),
+    head: argValue(args, '--head'),
+    diff: argValue(args, '--diff-file') ? readFileSync(argValue(args, '--diff-file') as string, 'utf8') : undefined,
+    manifest: argValue(args, '--manifest'),
+  })
+  const report = emptyReport()
+  report.copy = result
+
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+    return report
+  }
+
+  console.log(chalk.bold('\n  Sentinel Copy Validation\n'))
+  for (const finding of result.findings) {
+    const prefix = finding.severity === 'fail' ? chalk.red('  ✗') : finding.severity === 'warn' ? chalk.yellow('  ⚠') : chalk.green('  ✓')
+    const location = finding.line ? `${finding.file}:${finding.line}` : finding.file
+    console.log(`${prefix} ${chalk.dim(`[${finding.ruleId}]`)} ${location} ${finding.message}`)
+  }
+  console.log(chalk.dim(`\n  ${result.checkedCount} changed string(s), verdict: ${result.verdict}\n`))
+  return report
+}
+
+// ---------------------------------------------------------------------------
 // quality:check
 // ---------------------------------------------------------------------------
 
@@ -1336,7 +1381,7 @@ function cmdGateRun(): void {
   const kind = (args.find((_, i) => args[i - 1] === '--kind') ?? 'schema') as GateKind
   const jsonMode = args.includes('--json')
   const started = performance.now()
-  const command = ['sentinel', 'gate:run', '--kind', kind, ...(jsonMode ? ['--json'] : [])]
+  const command = ['sentinel', 'gate:run', ...args]
   const proofKind = argValue(args, '--proof-kind') ?? `sentinel-${kind}-gate`
   const proofContext: SentinelProofContext = {
     taskId: argValue(args, '--task-id'),
@@ -1352,8 +1397,20 @@ function cmdGateRun(): void {
       case 'schema': return cmdValidate()
       case 'contracts': return cmdContracts()
       case 'mock': return cmdMockValidate()
+      case 'copy': {
+        const copyReport = emptyReport()
+        copyReport.copy = validateCopy({
+          cwd: argValue(args, '--cwd') ?? process.cwd(),
+          requestor: argValue(args, '--requestor'),
+          base: argValue(args, '--base'),
+          head: argValue(args, '--head'),
+          diff: argValue(args, '--diff-file') ? readFileSync(argValue(args, '--diff-file') as string, 'utf8') : undefined,
+          manifest: argValue(args, '--manifest'),
+        })
+        return copyReport
+      }
       default:
-        throw new Error(`Unsupported gate: ${kind}. Supported: schema, contracts, mock`)
+        throw new Error(`Unsupported gate: ${kind}. Supported: schema, contracts, mock, copy`)
     }
   }
 
@@ -1383,7 +1440,7 @@ function cmdGateRun(): void {
     passed: issues.length === 0,
     issues,
     durationMs: Math.round(performance.now() - started),
-    checkedCount: report.schemas.length + report.contracts.length + report.mocks.length,
+    checkedCount: report.schemas.length + report.contracts.length + report.mocks.length + (report.copy?.checkedCount ?? 0),
     artifactRefs,
     proofKind,
     proofContext,
@@ -1425,6 +1482,7 @@ const writeStatusPath = parseWriteStatus();
     case 'atlas:export':     cmdAtlasExport(); break
     case 'atlas:migrate':    cmdAtlasMigrate(); break
     case 'registry:scan':    cmdRegistryScan(); break
+    case 'copy:validate':    report = cmdCopyValidate(); break
     case 'discover':         cmdDiscover(); break
     case 'gate:plan':        cmdGatePlan(); break
     case 'gate:run':         cmdGateRun(); break
@@ -1446,7 +1504,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | copy:validate [--base <ref>] [--head <ref>] [--diff-file <path>] [--manifest <path>] [--requestor <slug>] [--json] | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock|copy> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
       process.exit(1)
     }
 
@@ -1459,7 +1517,8 @@ const writeStatusPath = parseWriteStatus();
     const hasSchemaErrors = report.schemas.some((s) => !s.valid)
     const hasContractErrors = report.contracts.some((c) => !c.passing)
     const hasMockErrors = report.mocks.some((m) => !m.coverage)
-    if (hasSchemaErrors || hasContractErrors || hasMockErrors) process.exit(1)
+    const hasCopyErrors = report.copy?.verdict === 'failed'
+    if (hasSchemaErrors || hasContractErrors || hasMockErrors || hasCopyErrors) process.exit(1)
   }
 })().catch((e: unknown) => {
   console.error(e instanceof Error ? e.message : String(e))

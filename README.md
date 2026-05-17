@@ -26,6 +26,7 @@ Sentinel is a CLI tool that keeps your design tokens, strings, feature flags, mo
 | `sentinel atlas:export` | Exports legacy `catalog.screens` data into a surface-based migration fixture |
 | `sentinel atlas:migrate` | Writes an explicit migration plan showing what Sentinel transforms versus what Atlas owns |
 | `sentinel registry:scan` | Finds screen files in the codebase not registered in `sentinel.yaml` |
+| `sentinel copy:validate` | Deterministically validates changed user-facing strings from a diff or manifest |
 | `sentinel discover` | Emits machine-readable Sentinel config and gate inventory for a repo |
 | `sentinel chaos` | Runs chaos scenarios (network, auth, data, payment, platform) |
 | `sentinel flows` | Runs Maestro and Playwright end-to-end flows |
@@ -77,6 +78,7 @@ terminal output:
 sentinel discover --cwd /path/to/repo
 sentinel gate:plan --repo-type api --task-type api
 sentinel gate:run --kind schema --json
+sentinel gate:run --kind copy --diff-file /tmp/change.diff --requestor agent-runner --json
 ```
 
 `discover` emits `sentinel.discovery.v1` with config status, configured
@@ -88,6 +90,13 @@ mixed estates without treating missing Sentinel adoption as a failure.
 `gate:run` emits `sentinel.gate-result.v1` with the gate kind, verdict,
 failure class (`gate-failed` or `visual-invalid`), artifact references, duration,
 and replay command.
+
+`copy:validate` emits `sentinel.copy-validation.v1` and can be run directly or
+through `gate:run --kind copy`. It accepts a git diff (`--base/--head` or
+`--diff-file`) or a configured manifest (`--manifest`) and returns deterministic
+findings with `file`, `line`, `ruleId`, `severity`, and message fields. Callers
+can pass `--requestor <slug>` for attribution; Sentinel records the slug without
+knowing what product or harness invoked it.
 
 When automation clients supply `--task-id`, `--repo`, `--commit`, `--host`, and
 `--proof-kind`, the result also includes a `proofy` block with

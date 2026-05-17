@@ -84,6 +84,6 @@ describe('machine-readable gate result helpers', () => {
   it('selects configured gates by repo and task type', () => {
     expect(selectGateKinds({ repoType: 'api' })).toEqual(['schema', 'contracts', 'mock'])
     expect(selectGateKinds({ repoType: 'web', taskType: 'ui' })).toEqual(['schema', 'flow', 'visual', 'perf'])
-    expect(selectGateKinds({ configured: ['quality', 'schema', 'quality'] })).toEqual(['quality', 'schema'])
+    expect(selectGateKinds({ configured: ['quality', 'copy', 'schema', 'quality'] })).toEqual(['quality', 'copy', 'schema'])
   })
 })
