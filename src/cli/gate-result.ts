@@ -63,6 +63,22 @@ export interface GateResult {
   generatedAt: string
 }
 
+export interface ValidationBundle {
+  schemaVersion: 'sentinel.validation-bundle.v1'
+  producer: 'sentinel'
+  requestor: string | null
+  generatedAt: string
+  summary: {
+    verdict: 'passed' | 'failed'
+    gateCount: number
+    failedGateCount: number
+    failureCount: number
+  }
+  gateResults: GateResult[]
+  artifactRefs: SentinelArtifactRef[]
+  failures: GateFailure[]
+}
+
 export function buildGateResult(input: {
   kind: GateKind
   command: string[]
@@ -109,6 +125,33 @@ export function buildGateResult(input: {
   }
 }
 
+export function buildValidationBundle(input: {
+  gateResults: GateResult[]
+  requestor?: string
+  artifactRefs?: SentinelArtifactRef[]
+}): ValidationBundle {
+  const failures = input.gateResults.flatMap((result) => result.failures)
+  const artifactRefs = dedupeArtifactRefs([
+    ...(input.artifactRefs ?? []),
+    ...input.gateResults.flatMap((result) => result.artifactRefs),
+  ])
+  return {
+    schemaVersion: 'sentinel.validation-bundle.v1',
+    producer: 'sentinel',
+    requestor: input.requestor?.trim() || null,
+    generatedAt: new Date().toISOString(),
+    summary: {
+      verdict: failures.length === 0 ? 'passed' : 'failed',
+      gateCount: input.gateResults.length,
+      failedGateCount: input.gateResults.filter((result) => result.verdict === 'failed').length,
+      failureCount: failures.length,
+    },
+    gateResults: input.gateResults,
+    artifactRefs,
+    failures,
+  }
+}
+
 export function selectGateKinds(input: {
   repoType?: string
   taskType?: string
@@ -135,4 +178,12 @@ function failureClass(kind: GateKind, issue: ValidationIssue): GateFailureClass 
 
 function dedupe<T>(items: T[]): T[] {
   return [...new Set(items)]
+}
+
+function dedupeArtifactRefs(items: SentinelArtifactRef[]): SentinelArtifactRef[] {
+  return [
+    ...new Map(
+      items.map((ref) => [`${ref.kind}:${ref.sha256 ?? ref.path}:${ref.exists}`, ref] as const),
+    ).values(),
+  ]
 }

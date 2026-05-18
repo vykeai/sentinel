@@ -32,9 +32,11 @@ import { buildFeatureMatrix, printMatrix } from '../contracts/feature-matrix.js'
 import { formatWarningSummary } from './warnings.js'
 import { validateCopy, type CopyValidationResult } from './copy-validation.js'
 import {
+  buildValidationBundle,
   buildGateResult,
   selectGateKinds,
   type GateKind,
+  type GateResult,
   type SentinelArtifactRef,
   type SentinelProofContext,
 } from './gate-result.js'
@@ -1450,6 +1452,25 @@ function cmdGateRun(): void {
   if (result.verdict === 'failed') process.exit(1)
 }
 
+function cmdValidationBundle(): void {
+  const args = process.argv.slice(3)
+  const gateResultPaths = args
+    .map((value, index) => (args[index - 1] === '--gate-result' ? value : null))
+    .filter((value): value is string => value !== null)
+  const gateResults = gateResultPaths.map((path) => JSON.parse(readFileSync(path, 'utf8')) as GateResult)
+  const artifactRefs = [
+    ...artifactRefsFromArgs(args),
+    ...gateResultPaths.map((path) => artifactRef(path, 'sentinel-gate-result')),
+  ]
+  const bundle = buildValidationBundle({
+    gateResults,
+    artifactRefs,
+    requestor: argValue(args, '--requestor'),
+  })
+  process.stdout.write(JSON.stringify(bundle, null, 2) + '\n')
+  if (bundle.summary.verdict === 'failed') process.exit(1)
+}
+
 function cmdDiscover(): void {
   const args = process.argv.slice(3)
   const cwd = argValue(args, '--cwd') ?? process.cwd()
@@ -1486,6 +1507,7 @@ const writeStatusPath = parseWriteStatus();
     case 'discover':         cmdDiscover(); break
     case 'gate:plan':        cmdGatePlan(); break
     case 'gate:run':         cmdGateRun(); break
+    case 'validation:bundle': cmdValidationBundle(); break
     case 'quality:check': {
       const passed = await cmdQualityCheck()
       if (!passed) process.exit(1)
@@ -1504,7 +1526,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | copy:validate [--base <ref>] [--head <ref>] [--diff-file <path>] [--manifest <path>] [--requestor <slug>] [--json] | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock|copy> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | copy:validate [--base <ref>] [--head <ref>] [--diff-file <path>] [--manifest <path>] [--requestor <slug>] [--json] | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock|copy> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | validation:bundle --gate-result <file> [--requestor <slug>] [--artifact <path>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
       process.exit(1)
     }
 

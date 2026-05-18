@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGateResult, selectGateKinds } from '../../cli/gate-result.js'
+import { buildGateResult, buildValidationBundle, selectGateKinds } from '../../cli/gate-result.js'
 
 describe('machine-readable gate result helpers', () => {
   it('builds a stable machine-readable gate result', () => {
@@ -85,5 +85,55 @@ describe('machine-readable gate result helpers', () => {
     expect(selectGateKinds({ repoType: 'api' })).toEqual(['schema', 'contracts', 'mock'])
     expect(selectGateKinds({ repoType: 'web', taskType: 'ui' })).toEqual(['schema', 'flow', 'visual', 'perf'])
     expect(selectGateKinds({ configured: ['quality', 'copy', 'schema', 'quality'] })).toEqual(['quality', 'copy', 'schema'])
+  })
+
+  it('builds a scheduled validation bundle with stable refs and machine-readable failures', () => {
+    const passed = buildGateResult({
+      kind: 'copy',
+      command: ['sentinel', 'gate:run', '--kind', 'copy'],
+      passed: true,
+      durationMs: 10,
+      checkedCount: 2,
+      issues: [],
+      artifactRefs: [{ kind: 'copy-json', path: 'copy.json', sha256: 'copy-sha', exists: true }],
+    })
+    const failed = buildGateResult({
+      kind: 'schema',
+      command: ['sentinel', 'schema:validate'],
+      passed: false,
+      durationMs: 20,
+      checkedCount: 1,
+      artifactRefs: [{ kind: 'schema-json', path: 'schema.json', sha256: 'schema-sha', exists: true }],
+      issues: [
+        {
+          severity: 'error',
+          layer: 'schema',
+          rule: 'invalid-schema',
+          message: 'Schema failed',
+        },
+      ],
+    })
+
+    const bundle = buildValidationBundle({
+      gateResults: [passed, failed],
+      requestor: 'scheduler',
+    })
+
+    expect(bundle).toMatchObject({
+      schemaVersion: 'sentinel.validation-bundle.v1',
+      producer: 'sentinel',
+      requestor: 'scheduler',
+      summary: {
+        verdict: 'failed',
+        gateCount: 2,
+        failedGateCount: 1,
+        failureCount: 1,
+      },
+      artifactRefs: [
+        { kind: 'copy-json', path: 'copy.json', sha256: 'copy-sha', exists: true },
+        { kind: 'schema-json', path: 'schema.json', sha256: 'schema-sha', exists: true },
+      ],
+      failures: [expect.objectContaining({ rule: 'invalid-schema' })],
+    })
   })
 })
