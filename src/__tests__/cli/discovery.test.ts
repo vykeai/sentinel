@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -29,7 +29,7 @@ describe('Sentinel repo discovery', () => {
     expect(result.reason).toBe('sentinel-config-missing')
     expect(result.configPath).toBeNull()
     expect(result.platforms).toEqual([])
-    expect(result.gates).toHaveLength(11)
+    expect(result.gates).toHaveLength(12)
     expect(result.capabilities).toContain('sentinel.copy-validation.v1')
     expect(result.gates.every((gate) => gate.configured === false)).toBe(true)
   })
@@ -40,9 +40,13 @@ describe('Sentinel repo discovery', () => {
     mkdirSync(join(repo, 'sentinel', 'schemas', 'platform'), { recursive: true })
     mkdirSync(join(repo, 'sentinel', 'flows', 'playwright'), { recursive: true })
     mkdirSync(join(repo, 'sentinel', 'visual', 'baselines'), { recursive: true })
+    mkdirSync(join(repo, 'bin'), { recursive: true })
+    mkdirSync(join(repo, 'fed', 'dist'), { recursive: true })
     writeFileSync(join(repo, 'sentinel', 'schemas', 'features', 'auth.json'), '{}\n')
     writeFileSync(join(repo, 'sentinel', 'schemas', 'platform', 'mock-config.json'), '{}\n')
     writeFileSync(join(repo, 'sentinel', 'flows', 'playwright', 'auth.spec.ts'), 'test("auth", () => {})\n')
+    writeFileSync(join(repo, 'bin', 'onlytools'), '#!/usr/bin/env bash\n')
+    writeFileSync(join(repo, 'fed', 'dist', 'cli.js'), '#!/usr/bin/env node\n')
     writeFileSync(join(repo, 'sentinel.yaml'), [
       'sentinel: "1.0"',
       'project: discovery-app',
@@ -71,6 +75,7 @@ describe('Sentinel repo discovery', () => {
     expect(gates.contracts.configured).toBe(true)
     expect(gates.mock.configured).toBe(true)
     expect(gates.copy.configured).toBe(true)
+    expect(gates.onlytools.configured).toBe(true)
     expect(gates.catalog.configured).toBe(true)
     expect(gates.flow.configured).toBe(true)
     expect(gates.visual.configured).toBe(true)
@@ -78,7 +83,40 @@ describe('Sentinel repo discovery', () => {
     expect(gates.chaos.configured).toBe(false)
     expect(gates.schema.replayCommand).toBe('sentinel gate:run --kind schema --json')
     expect(gates.copy.replayCommand).toBe('sentinel gate:run --kind copy --json')
+    expect(gates.onlytools.replayCommand).toBe('sentinel gate:run --kind onlytools --json')
     expect(gates.visual.replayCommand).toBe('sentinel visual')
     expect(gates.mock.inputs.some((input) => input.required && input.exists)).toBe(true)
+    expect(gates.onlytools.inputs.every((input) => input.required && input.exists)).toBe(true)
+  })
+
+  it('discovers the Onlytools gate from a nested Sentinel project directory', () => {
+    const repo = tempRepo()
+    const sentinelProject = join(repo, 'sentinel')
+    mkdirSync(join(sentinelProject, 'schemas', 'features'), { recursive: true })
+    mkdirSync(join(repo, 'bin'), { recursive: true })
+    mkdirSync(join(repo, 'fed', 'dist'), { recursive: true })
+    writeFileSync(join(sentinelProject, 'schemas', 'features', 'auth.json'), '{}\n')
+    writeFileSync(join(repo, 'bin', 'onlytools'), '#!/usr/bin/env bash\n')
+    writeFileSync(join(repo, 'fed', 'dist', 'cli.js'), '#!/usr/bin/env node\n')
+    writeFileSync(join(sentinelProject, 'sentinel.yaml'), [
+      'sentinel: "1.0"',
+      'project: nested-sentinel',
+      'version: "1.2.3"',
+      'location: "."',
+      'quality:',
+      '  tests: npm test',
+      '',
+    ].join('\n'))
+
+    const result = discoverSentinelRepo(sentinelProject)
+    const gates = Object.fromEntries(result.gates.map((gate) => [gate.kind, gate]))
+    const realRepo = realpathSync(repo)
+
+    expect(gates.onlytools.configured).toBe(true)
+    expect(gates.onlytools.inputs.map((input) => input.path)).toEqual([
+      join(realRepo, 'bin', 'onlytools'),
+      join(realRepo, 'fed', 'dist', 'cli.js'),
+    ])
+    expect(gates.onlytools.replayCommand).toBe('sentinel gate:run --kind onlytools --json')
   })
 })

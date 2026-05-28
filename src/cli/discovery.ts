@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { findConfigFile, getSentinelPaths, loadConfig } from '../config/loader.js'
 import type { ResolvedConfig, SentinelPlatformMap } from '../config/types.js'
+import { discoverOnlytoolsRoot } from '../onlytools/validator.js'
 import type { GateKind } from './gate-result.js'
 
 export type SentinelDiscoveryStatus = 'configured' | 'not-configured'
@@ -46,7 +47,7 @@ const CAPABILITIES = [
   'sentinel.copy-validation.v1',
 ]
 
-const AUTOMATION_RUNNABLE_GATES = new Set<GateKind>(['schema', 'contracts', 'mock', 'copy'])
+const AUTOMATION_RUNNABLE_GATES = new Set<GateKind>(['schema', 'contracts', 'mock', 'copy', 'onlytools'])
 
 export function discoverSentinelRepo(startDir = process.cwd()): SentinelDiscoveryResult {
   const configPath = findConfigFile(startDir)
@@ -103,6 +104,9 @@ function buildUnconfiguredGates(): SentinelDiscoveryGate[] {
 
 function buildConfiguredGates(config: ResolvedConfig, configPath: string): SentinelDiscoveryGate[] {
   const paths = getSentinelPaths(config.sentinelDir)
+  const onlytoolsRoot = discoverOnlytoolsRoot(config.projectRoot)
+  const onlytoolsCli = onlytoolsRoot ? join(onlytoolsRoot, 'bin', 'onlytools') : join(config.projectRoot, 'bin', 'onlytools')
+  const fedCli = onlytoolsRoot ? join(onlytoolsRoot, 'fed', 'dist', 'cli.js') : join(config.projectRoot, 'fed', 'dist', 'cli.js')
 
   return [
     gate('schema', hasAnyFile(paths.schemas, ['.json']), 'schema-files-present', 'schema-files-missing', [
@@ -126,6 +130,14 @@ function buildConfiguredGates(config: ResolvedConfig, configPath: string): Senti
       input('git diff or --diff-file', false, 'Changed user-facing strings from a git diff'),
       input('copy manifest', false, 'Optional manifest containing strings or files to validate'),
     ]),
+    gate('onlytools',
+      Boolean(onlytoolsRoot) && existsSync(onlytoolsCli) && existsSync(fedCli),
+      'onlytools-release-gate-inputs-present',
+      'onlytools-release-gate-inputs-missing',
+      [
+        input(onlytoolsCli, true, 'Onlytools CLI'),
+        input(fedCli, true, 'Fed CLI build'),
+      ]),
     gate('catalog', Boolean(config.catalog), 'catalog-config-present', 'catalog-config-missing', [
       input(config.catalog ? join(config.projectRoot, config.catalog.output) : join(config.projectRoot, 'sentinel-catalog'), true, 'Catalog output directory'),
       input(paths.visual.baselines, false, 'Legacy visual baseline directory'),
@@ -162,7 +174,8 @@ function gate(
   configured: boolean,
   configuredReason: string,
   unconfiguredReason: string,
-  inputs: SentinelDiscoveryInput[]
+  inputs: SentinelDiscoveryInput[],
+  replayCommandOverride?: string,
 ): SentinelDiscoveryGate {
   const automationRunnable = AUTOMATION_RUNNABLE_GATES.has(kind)
   return {
@@ -170,7 +183,7 @@ function gate(
     configured,
     reason: configured ? configuredReason : unconfiguredReason,
     inputs,
-    replayCommand: configured ? replayCommand(kind, automationRunnable) : null,
+    replayCommand: configured ? replayCommandOverride ?? replayCommand(kind, automationRunnable) : null,
     automationRunnable,
   }
 }
@@ -189,6 +202,7 @@ function replayCommand(kind: GateKind, automationRunnable: boolean): string {
     doctor: 'sentinel doctor --json',
     quality: 'sentinel quality:check --json',
     copy: 'sentinel gate:run --kind copy --json',
+    onlytools: 'sentinel gate:run --kind onlytools --json',
   }
   return legacyCommands[kind]
 }
@@ -219,7 +233,7 @@ function hasAnyFile(dir: string, extensions: string[]): boolean {
 }
 
 function gateKinds(): GateKind[] {
-  return ['schema', 'contracts', 'mock', 'copy', 'catalog', 'flow', 'visual', 'chaos', 'perf', 'doctor', 'quality']
+  return ['schema', 'contracts', 'mock', 'copy', 'onlytools', 'catalog', 'flow', 'visual', 'chaos', 'perf', 'doctor', 'quality']
 }
 
 function isConfigKey(path: string): boolean {

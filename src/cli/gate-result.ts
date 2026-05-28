@@ -27,6 +27,7 @@ export type GateKind =
   | 'doctor'
   | 'quality'
   | 'copy'
+  | 'onlytools'
 
 export type GateFailureClass = 'gate-failed' | 'visual-invalid'
 

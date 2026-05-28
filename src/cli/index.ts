@@ -44,6 +44,7 @@ import { discoverSentinelRepo } from './discovery.js'
 import { cmdAtlasExport, cmdAtlasImport, cmdAtlasMigrate } from './atlas.js'
 import type { PlatformKey, ResolvedConfig } from '../config/types.js'
 import type { AtlasManifestFixture, AtlasSessionCaptureIndex } from '../catalog/atlas-compat.js'
+import { validateOnlytoolsEstate, type OnlytoolsValidationResult } from '../onlytools/validator.js'
 
 // ---------------------------------------------------------------------------
 // Schema loading
@@ -174,6 +175,26 @@ function statusReportIssues(kind: GateKind, report: StatusReport): import('../co
     })
   }
   return issues
+}
+
+function onlytoolsIssues(result: OnlytoolsValidationResult): import('../config/types.js').ValidationIssue[] {
+  return result.checks.flatMap(check => {
+    if (check.status === 'pass') return []
+    const errors = check.errors.length > 0 ? check.errors : [check.summary || `${check.section} validation failed`]
+    return errors.map(error => ({
+      severity: 'error' as const,
+      layer: `onlytools.${check.section}`,
+      rule: `${check.section}-invalid`,
+      message: error,
+      fix: `rerun: ${check.command.join(' ')}`,
+    }))
+  })
+}
+
+function sanitizeOnlytoolsGateCommand(command: string[]): string[] {
+  return command.map((part, index) => (
+    command[index - 1] === '--repo-root' || command[index - 1] === '--cwd' ? '<repo>' : part
+  ))
 }
 
 function staleCommitIssue(context: SentinelProofContext): import('../config/types.js').ValidationIssue | null {
@@ -921,6 +942,32 @@ function cmdDoctor(): boolean {
   return result.passed
 }
 
+function cmdOnlytoolsValidate(): boolean {
+  const args = process.argv.slice(3)
+  const jsonMode = args.includes('--json')
+  const repoRoot = argValue(args, '--repo-root') ?? argValue(args, '--cwd')
+  const timeoutRaw = argValue(args, '--mdns-timeout')
+  const mdnsTimeoutMs = timeoutRaw ? Number.parseInt(timeoutRaw, 10) : 100
+  const result = validateOnlytoolsEstate({ repoRoot, mdnsTimeoutMs, restrictToDiscoveredRoot: true })
+
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+    return result.ok
+  }
+
+  const write = result.ok ? console.log : console.error
+  write(chalk.bold('\n  Onlytools validation\n'))
+  for (const check of result.checks) {
+    const prefix = check.status === 'pass' ? chalk.green('  ✓') : chalk.red('  ✗')
+    write(`${prefix} ${check.section}: ${check.summary}`)
+    for (const error of check.errors) {
+      write(`     ${chalk.dim(error)}`)
+    }
+  }
+  write('')
+  return result.ok
+}
+
 // ---------------------------------------------------------------------------
 // contracts
 // ---------------------------------------------------------------------------
@@ -1383,7 +1430,8 @@ function cmdGateRun(): void {
   const kind = (args.find((_, i) => args[i - 1] === '--kind') ?? 'schema') as GateKind
   const jsonMode = args.includes('--json')
   const started = performance.now()
-  const command = ['sentinel', 'gate:run', ...args]
+  const rawCommand = ['sentinel', 'gate:run', ...args]
+  const command = kind === 'onlytools' ? sanitizeOnlytoolsGateCommand(rawCommand) : rawCommand
   const proofKind = argValue(args, '--proof-kind') ?? `sentinel-${kind}-gate`
   const proofContext: SentinelProofContext = {
     taskId: argValue(args, '--task-id'),
@@ -1393,12 +1441,26 @@ function cmdGateRun(): void {
     host: argValue(args, '--host'),
   }
   const artifactRefs = artifactRefsFromArgs(args)
+  let onlytoolsGateResult: OnlytoolsValidationResult | null = null
 
   const run = () => {
     switch (kind) {
       case 'schema': return cmdValidate()
       case 'contracts': return cmdContracts()
       case 'mock': return cmdMockValidate()
+      case 'onlytools': {
+        onlytoolsGateResult = validateOnlytoolsEstate({
+          repoRoot: argValue(args, '--repo-root') ?? argValue(args, '--cwd'),
+          mdnsTimeoutMs: Number.parseInt(argValue(args, '--mdns-timeout') ?? '100', 10),
+          restrictToDiscoveredRoot: true,
+        })
+        const onlytoolsReport = emptyReport()
+        onlytoolsReport.contracts = onlytoolsGateResult.checks.map(check => ({
+          name: `onlytools:${check.section}`,
+          passing: check.status === 'pass',
+        }))
+        return onlytoolsReport
+      }
       case 'copy': {
         const copyReport = emptyReport()
         copyReport.copy = validateCopy({
@@ -1412,7 +1474,7 @@ function cmdGateRun(): void {
         return copyReport
       }
       default:
-        throw new Error(`Unsupported gate: ${kind}. Supported: schema, contracts, mock, copy`)
+        throw new Error(`Unsupported gate: ${kind}. Supported: schema, contracts, mock, copy, onlytools`)
     }
   }
 
@@ -1433,7 +1495,13 @@ function cmdGateRun(): void {
     report = run()
   }
 
-  const issues = statusReportIssues(kind, report)
+  const issues = kind === 'onlytools'
+    ? onlytoolsIssues(onlytoolsGateResult ?? validateOnlytoolsEstate({
+      repoRoot: argValue(args, '--repo-root') ?? argValue(args, '--cwd'),
+      mdnsTimeoutMs: Number.parseInt(argValue(args, '--mdns-timeout') ?? '100', 10),
+      restrictToDiscoveredRoot: true,
+    }))
+    : statusReportIssues(kind, report)
   const staleIssue = staleCommitIssue(proofContext)
   if (staleIssue) issues.push(staleIssue)
   const result = buildGateResult({
@@ -1518,6 +1586,21 @@ const writeStatusPath = parseWriteStatus();
       if (!passed) process.exit(1)
       break
     }
+    case 'onlytools': {
+      const passed = cmdOnlytoolsValidate()
+      if (!passed) process.exit(1)
+      break
+    }
+    case 'validate': {
+      if (process.argv[3] !== 'onlytools') {
+        console.error('Usage: sentinel validate onlytools [--json] [--repo-root <path>] [--mdns-timeout <ms>]')
+        process.exit(1)
+      }
+      process.argv.splice(3, 1)
+      const passed = cmdOnlytoolsValidate()
+      if (!passed) process.exit(1)
+      break
+    }
     case 'all': {
       report = cmdValidate()
       await cmdGenerate()
@@ -1526,7 +1609,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | copy:validate [--base <ref>] [--head <ref>] [--diff-file <path>] [--manifest <path>] [--requestor <slug>] [--json] | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock|copy> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | validation:bundle --gate-result <file> [--requestor <slug>] [--artifact <path>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | copy:validate [--base <ref>] [--head <ref>] [--diff-file <path>] [--manifest <path>] [--requestor <slug>] [--json] | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock|copy|onlytools> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--repo-root <path>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | validation:bundle --gate-result <file> [--requestor <slug>] [--artifact <path>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | onlytools [--json] [--repo-root <path>] [--mdns-timeout <ms>] | validate onlytools [--json] [--repo-root <path>] [--mdns-timeout <ms>] | all')
       process.exit(1)
     }
 

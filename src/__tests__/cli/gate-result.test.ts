@@ -84,7 +84,22 @@ describe('machine-readable gate result helpers', () => {
   it('selects configured gates by repo and task type', () => {
     expect(selectGateKinds({ repoType: 'api' })).toEqual(['schema', 'contracts', 'mock'])
     expect(selectGateKinds({ repoType: 'web', taskType: 'ui' })).toEqual(['schema', 'flow', 'visual', 'perf'])
-    expect(selectGateKinds({ configured: ['quality', 'copy', 'schema', 'quality'] })).toEqual(['quality', 'copy', 'schema'])
+    expect(selectGateKinds({ configured: ['quality', 'copy', 'onlytools', 'schema', 'quality'] })).toEqual(['quality', 'copy', 'onlytools', 'schema'])
+  })
+
+  it('builds an Onlytools release-gate result', () => {
+    const result = buildGateResult({
+      kind: 'onlytools',
+      command: ['sentinel', 'gate:run', '--kind', 'onlytools'],
+      passed: true,
+      durationMs: 25,
+      checkedCount: 4,
+      issues: [],
+    })
+
+    expect(result.gate.kind).toBe('onlytools')
+    expect(result.proofKind).toBe('sentinel-onlytools-gate')
+    expect(result.verdict).toBe('passed')
   })
 
   it('builds a scheduled validation bundle with stable refs and machine-readable failures', () => {
