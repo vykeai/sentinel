@@ -624,6 +624,16 @@ final class MockURLProtocol: URLProtocol {
 ${cases}
     ]
 
+    private static let fixtureSet: String? = {
+        guard let rawValue = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--mock-fixture-set=") })?
+            .dropFirst("--mock-fixture-set=".count),
+            rawValue.range(of: #"^[a-z0-9][a-z0-9_-]*$"#, options: .regularExpression) != nil
+        else {
+            return nil
+        }
+        return String(rawValue)
+    }()
+
     // ---------------------------------------------------------------------------
     // URLProtocol overrides
     // ---------------------------------------------------------------------------
@@ -656,15 +666,16 @@ ${cases}
         // Load fixture from bundle — sentinel/fixtures/ added as folder reference in Xcode.
         // The folder reference appears as "fixtures" at the bundle root, so subdirectory
         // must be prefixed with "fixtures/" (e.g. "fixtures/auth" not just "auth").
-        let parts = route.fixture.split(separator: "/")
-        let name  = parts.last.map(String.init)?.replacingOccurrences(of: ".json", with: "") ?? ""
-        let subdir = parts.count > 1
-            ? "fixtures/" + parts.dropLast().joined(separator: "/")
-            : "fixtures"
-        guard
-            let bundleURL = Bundle.main.url(forResource: name, withExtension: "json", subdirectory: subdir),
-            let data = try? Data(contentsOf: bundleURL)
-        else {
+        let candidates = Self.fixtureCandidates(for: route.fixture)
+        guard let data = candidates.compactMap({ candidate -> Data? in
+            guard
+                let bundleURL = Bundle.main.url(forResource: candidate.name, withExtension: "json", subdirectory: candidate.subdir),
+                let data = try? Data(contentsOf: bundleURL)
+            else {
+                return nil
+            }
+            return data
+        }).first else {
             print("[MockURLProtocol] fixture not found: \\(route.fixture)")
             client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
             return
@@ -683,6 +694,22 @@ ${cases}
             self.client?.urlProtocol(self, didLoad: data)
             self.client?.urlProtocolDidFinishLoading(self)
         }
+    }
+
+    private static func fixtureCandidates(for fixture: String) -> [(name: String, subdir: String)] {
+        let parts = fixture.split(separator: "/")
+        let name = parts.last.map(String.init)?.replacingOccurrences(of: ".json", with: "") ?? ""
+        let relativeSubdir = parts.count > 1
+            ? parts.dropLast().joined(separator: "/")
+            : ""
+        let baseSubdir = relativeSubdir.isEmpty ? "fixtures" : "fixtures/" + relativeSubdir
+        if let fixtureSet {
+            let scopedSubdir = relativeSubdir.isEmpty
+                ? "fixtures/" + fixtureSet
+                : "fixtures/" + fixtureSet + "/" + relativeSubdir
+            return [(name, scopedSubdir), (name, baseSubdir)]
+        }
+        return [(name, baseSubdir)]
     }
 
     override func stopLoading() {}
@@ -722,6 +749,7 @@ function genKotlinMockDispatcher(mappings: EndpointFixtureMapping[], outputPath:
 
 package ${pkg}
 
+import com.fitkind.core.deeplink.DebugProofOverrides
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.RecordedRequest
@@ -756,7 +784,7 @@ ${cases}
         }
 
         return try {
-            val json = assets.open("fixtures/\${route.fixture}").bufferedReader().readText()
+            val json = readFixture(route.fixture)
             MockResponse()
                 .setResponseCode(route.status)
                 .setHeader("Content-Type", "application/json")
@@ -765,6 +793,25 @@ ${cases}
         } catch (e: Exception) {
             MockResponse().setResponseCode(500).setBody("""{"error":"Fixture not found: \${route.fixture}"}""")
         }
+    }
+
+    private fun readFixture(fixture: String): String {
+        val fixtureSet = DebugProofOverrides.mockFixtureSet
+            ?.takeIf { it.matches(Regex("^[a-z0-9][a-z0-9_-]*$")) }
+        val candidatePaths = listOfNotNull(
+            fixtureSet?.let { "fixtures/$it/$fixture" },
+            "fixtures/$fixture",
+        )
+
+        var lastError: Exception? = null
+        for (path in candidatePaths) {
+            try {
+                return assets.open(path).bufferedReader().readText()
+            } catch (error: Exception) {
+                lastError = error
+            }
+        }
+        throw lastError ?: IllegalStateException("Fixture not found: $fixture")
     }
 }
 `
