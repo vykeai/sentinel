@@ -4,3 +4,6 @@ dist/
 *.js.map
 coverage/
 artifacts/
+
+# git worktrees (parallel agent runs)
+.worktrees/
