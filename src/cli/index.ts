@@ -15,6 +15,8 @@
  *   all              — validate → generate → mock:generate.
  */
 
+import { createHash } from 'crypto'
+import { execFileSync } from 'child_process'
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs'
 import { join, dirname, basename, relative, resolve, sep } from 'path'
 import chalk from 'chalk'
@@ -28,9 +30,21 @@ import { checkMockIntegration, findFixturePathCandidates } from '../mock/integra
 import { runDoctorCheck } from '../doctor/check.js'
 import { buildFeatureMatrix, printMatrix } from '../contracts/feature-matrix.js'
 import { formatWarningSummary } from './warnings.js'
+import { validateCopy, type CopyValidationResult } from './copy-validation.js'
+import {
+  buildValidationBundle,
+  buildGateResult,
+  selectGateKinds,
+  type GateKind,
+  type GateResult,
+  type SentinelArtifactRef,
+  type SentinelProofContext,
+} from './gate-result.js'
+import { discoverSentinelRepo } from './discovery.js'
 import { cmdAtlasExport, cmdAtlasImport, cmdAtlasMigrate } from './atlas.js'
 import type { PlatformKey, ResolvedConfig } from '../config/types.js'
 import type { AtlasManifestFixture, AtlasSessionCaptureIndex } from '../catalog/atlas-compat.js'
+import { validateOnlytoolsEstate, type OnlytoolsValidationResult } from '../onlytools/validator.js'
 
 // ---------------------------------------------------------------------------
 // Schema loading
@@ -70,6 +84,7 @@ interface StatusReport {
   schemas: Array<{ name: string; valid: boolean; errors: string[] }>
   contracts: Array<{ name: string; passing: boolean }>
   mocks: Array<{ endpoint: string; coverage: boolean }>
+  copy?: CopyValidationResult
 }
 
 function parseWriteStatus(): string | null {
@@ -83,6 +98,114 @@ function writeStatusFile(path: string, report: StatusReport): void {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(path, JSON.stringify(report, null, 2) + '\n', 'utf8')
   console.log(`  status written to ${path}`)
+}
+
+function artifactRefsFromArgs(args: string[]): SentinelArtifactRef[] {
+  const refs: SentinelArtifactRef[] = []
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--artifact' && args[i + 1]) {
+      refs.push(artifactRef(args[i + 1], 'artifact'))
+    }
+  }
+  return refs
+}
+
+function artifactRef(path: string, kind: string): SentinelArtifactRef {
+  if (!existsSync(path)) return { kind, path, sha256: null, exists: false }
+  return {
+    kind,
+    path,
+    sha256: createHash('sha256').update(readFileSync(path)).digest('hex'),
+    exists: true,
+  }
+}
+
+function argValue(args: string[], flag: string): string | undefined {
+  return args.find((_, i) => args[i - 1] === flag)
+}
+
+function currentCommit(): string | undefined {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch {
+    return undefined
+  }
+}
+
+function statusReportIssues(kind: GateKind, report: StatusReport): import('../config/types.js').ValidationIssue[] {
+  const issues: import('../config/types.js').ValidationIssue[] = []
+  for (const schema of report.schemas) {
+    for (const error of schema.errors) {
+      issues.push({
+        severity: 'error',
+        layer: 'schema',
+        rule: 'schema-invalid',
+        message: error,
+      })
+    }
+  }
+  for (const contract of report.contracts) {
+    if (!contract.passing) {
+      issues.push({
+        severity: 'error',
+        layer: 'contracts',
+        rule: 'contract-failed',
+        message: `Contract failed: ${contract.name}`,
+      })
+    }
+  }
+  for (const mock of report.mocks) {
+    if (!mock.coverage) {
+      issues.push({
+        severity: 'error',
+        layer: kind === 'visual' ? 'visual' : 'mock',
+        rule: kind === 'visual' ? 'visual-invalid' : 'mock-invalid',
+        message: `Gate failed: ${mock.endpoint}`,
+      })
+    }
+  }
+  for (const finding of report.copy?.findings ?? []) {
+    if (finding.severity === 'pass') continue
+    issues.push({
+      severity: finding.severity === 'fail' ? 'error' : 'warning',
+      layer: 'copy',
+      rule: finding.ruleId,
+      message: finding.message,
+      file: finding.file,
+    })
+  }
+  return issues
+}
+
+function onlytoolsIssues(result: OnlytoolsValidationResult): import('../config/types.js').ValidationIssue[] {
+  return result.checks.flatMap(check => {
+    if (check.status === 'pass') return []
+    const errors = check.errors.length > 0 ? check.errors : [check.summary || `${check.section} validation failed`]
+    return errors.map(error => ({
+      severity: 'error' as const,
+      layer: `onlytools.${check.section}`,
+      rule: `${check.section}-invalid`,
+      message: error,
+      fix: `rerun: ${check.command.join(' ')}`,
+    }))
+  })
+}
+
+function sanitizeOnlytoolsGateCommand(command: string[]): string[] {
+  return command.map((part, index) => (
+    command[index - 1] === '--repo-root' || command[index - 1] === '--cwd' ? '<repo>' : part
+  ))
+}
+
+function staleCommitIssue(context: SentinelProofContext): import('../config/types.js').ValidationIssue | null {
+  if (!context.commit || !context.currentCommit || context.commit === context.currentCommit) return null
+  return {
+    severity: 'error',
+    layer: 'proof',
+    rule: 'stale-sentinel-result',
+    message: `Provided commit ${context.commit} does not match current commit ${context.currentCommit}`,
+    fix: 'Rerun Sentinel against the current commit before producing proof',
+  }
 }
 
 function emptyReport(): StatusReport {
@@ -501,6 +624,16 @@ final class MockURLProtocol: URLProtocol {
 ${cases}
     ]
 
+    private static let fixtureSet: String? = {
+        guard let rawValue = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--mock-fixture-set=") })?
+            .dropFirst("--mock-fixture-set=".count),
+            rawValue.range(of: #"^[a-z0-9][a-z0-9_-]*$"#, options: .regularExpression) != nil
+        else {
+            return nil
+        }
+        return String(rawValue)
+    }()
+
     // ---------------------------------------------------------------------------
     // URLProtocol overrides
     // ---------------------------------------------------------------------------
@@ -533,15 +666,16 @@ ${cases}
         // Load fixture from bundle — sentinel/fixtures/ added as folder reference in Xcode.
         // The folder reference appears as "fixtures" at the bundle root, so subdirectory
         // must be prefixed with "fixtures/" (e.g. "fixtures/auth" not just "auth").
-        let parts = route.fixture.split(separator: "/")
-        let name  = parts.last.map(String.init)?.replacingOccurrences(of: ".json", with: "") ?? ""
-        let subdir = parts.count > 1
-            ? "fixtures/" + parts.dropLast().joined(separator: "/")
-            : "fixtures"
-        guard
-            let bundleURL = Bundle.main.url(forResource: name, withExtension: "json", subdirectory: subdir),
-            let data = try? Data(contentsOf: bundleURL)
-        else {
+        let candidates = Self.fixtureCandidates(for: route.fixture)
+        guard let data = candidates.compactMap({ candidate -> Data? in
+            guard
+                let bundleURL = Bundle.main.url(forResource: candidate.name, withExtension: "json", subdirectory: candidate.subdir),
+                let data = try? Data(contentsOf: bundleURL)
+            else {
+                return nil
+            }
+            return data
+        }).first else {
             print("[MockURLProtocol] fixture not found: \\(route.fixture)")
             client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
             return
@@ -560,6 +694,22 @@ ${cases}
             self.client?.urlProtocol(self, didLoad: data)
             self.client?.urlProtocolDidFinishLoading(self)
         }
+    }
+
+    private static func fixtureCandidates(for fixture: String) -> [(name: String, subdir: String)] {
+        let parts = fixture.split(separator: "/")
+        let name = parts.last.map(String.init)?.replacingOccurrences(of: ".json", with: "") ?? ""
+        let relativeSubdir = parts.count > 1
+            ? parts.dropLast().joined(separator: "/")
+            : ""
+        let baseSubdir = relativeSubdir.isEmpty ? "fixtures" : "fixtures/" + relativeSubdir
+        if let fixtureSet {
+            let scopedSubdir = relativeSubdir.isEmpty
+                ? "fixtures/" + fixtureSet
+                : "fixtures/" + fixtureSet + "/" + relativeSubdir
+            return [(name, scopedSubdir), (name, baseSubdir)]
+        }
+        return [(name, baseSubdir)]
     }
 
     override func stopLoading() {}
@@ -599,6 +749,7 @@ function genKotlinMockDispatcher(mappings: EndpointFixtureMapping[], outputPath:
 
 package ${pkg}
 
+import com.fitkind.core.deeplink.DebugProofOverrides
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.RecordedRequest
@@ -633,7 +784,7 @@ ${cases}
         }
 
         return try {
-            val json = assets.open("fixtures/\${route.fixture}").bufferedReader().readText()
+            val json = readFixture(route.fixture)
             MockResponse()
                 .setResponseCode(route.status)
                 .setHeader("Content-Type", "application/json")
@@ -642,6 +793,25 @@ ${cases}
         } catch (e: Exception) {
             MockResponse().setResponseCode(500).setBody("""{"error":"Fixture not found: \${route.fixture}"}""")
         }
+    }
+
+    private fun readFixture(fixture: String): String {
+        val fixtureSet = DebugProofOverrides.mockFixtureSet
+            ?.takeIf { it.matches(Regex("^[a-z0-9][a-z0-9_-]*$")) }
+        val candidatePaths = listOfNotNull(
+            fixtureSet?.let { "fixtures/$it/$fixture" },
+            "fixtures/$fixture",
+        )
+
+        var lastError: Exception? = null
+        for (path in candidatePaths) {
+            try {
+                return assets.open(path).bufferedReader().readText()
+            } catch (error: Exception) {
+                lastError = error
+            }
+        }
+        throw lastError ?: IllegalStateException("Fixture not found: $fixture")
     }
 }
 `
@@ -817,6 +987,32 @@ function cmdDoctor(): boolean {
   }
   console.log('')
   return result.passed
+}
+
+function cmdOnlytoolsValidate(): boolean {
+  const args = process.argv.slice(3)
+  const jsonMode = args.includes('--json')
+  const repoRoot = argValue(args, '--repo-root') ?? argValue(args, '--cwd')
+  const timeoutRaw = argValue(args, '--mdns-timeout')
+  const mdnsTimeoutMs = timeoutRaw ? Number.parseInt(timeoutRaw, 10) : 100
+  const result = validateOnlytoolsEstate({ repoRoot, mdnsTimeoutMs, restrictToDiscoveredRoot: true })
+
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+    return result.ok
+  }
+
+  const write = result.ok ? console.log : console.error
+  write(chalk.bold('\n  Onlytools validation\n'))
+  for (const check of result.checks) {
+    const prefix = check.status === 'pass' ? chalk.green('  ✓') : chalk.red('  ✗')
+    write(`${prefix} ${check.section}: ${check.summary}`)
+    for (const error of check.errors) {
+      write(`     ${chalk.dim(error)}`)
+    }
+  }
+  write('')
+  return result.ok
 }
 
 // ---------------------------------------------------------------------------
@@ -1171,6 +1367,39 @@ function cmdRegistryScan(): void {
 }
 
 // ---------------------------------------------------------------------------
+// copy:validate
+// ---------------------------------------------------------------------------
+
+function cmdCopyValidate(): StatusReport {
+  const args = process.argv.slice(3)
+  const jsonMode = args.includes('--json')
+  const result = validateCopy({
+    cwd: argValue(args, '--cwd') ?? process.cwd(),
+    requestor: argValue(args, '--requestor'),
+    base: argValue(args, '--base'),
+    head: argValue(args, '--head'),
+    diff: argValue(args, '--diff-file') ? readFileSync(argValue(args, '--diff-file') as string, 'utf8') : undefined,
+    manifest: argValue(args, '--manifest'),
+  })
+  const report = emptyReport()
+  report.copy = result
+
+  if (jsonMode) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+    return report
+  }
+
+  console.log(chalk.bold('\n  Sentinel Copy Validation\n'))
+  for (const finding of result.findings) {
+    const prefix = finding.severity === 'fail' ? chalk.red('  ✗') : finding.severity === 'warn' ? chalk.yellow('  ⚠') : chalk.green('  ✓')
+    const location = finding.line ? `${finding.file}:${finding.line}` : finding.file
+    console.log(`${prefix} ${chalk.dim(`[${finding.ruleId}]`)} ${location} ${finding.message}`)
+  }
+  console.log(chalk.dim(`\n  ${result.checkedCount} changed string(s), verdict: ${result.verdict}\n`))
+  return report
+}
+
+// ---------------------------------------------------------------------------
 // quality:check
 // ---------------------------------------------------------------------------
 
@@ -1227,6 +1456,143 @@ async function cmdQualityCheck(): Promise<boolean> {
   return result.passed
 }
 
+function cmdGatePlan(): void {
+  const args = process.argv.slice(3)
+  const repoType = args.find((_, i) => args[i - 1] === '--repo-type')
+  const taskType = args.find((_, i) => args[i - 1] === '--task-type')
+  const configured = args
+    .map((value, index) => (args[index - 1] === '--kind' ? value as GateKind : null))
+    .filter((value): value is GateKind => value !== null)
+  const gates = selectGateKinds({ repoType, taskType, configured })
+  process.stdout.write(JSON.stringify({
+    schemaVersion: 'sentinel.gate-plan.v1',
+    repoType: repoType ?? null,
+    taskType: taskType ?? null,
+    gates,
+  }, null, 2) + '\n')
+}
+
+function cmdGateRun(): void {
+  const args = process.argv.slice(3)
+  const kind = (args.find((_, i) => args[i - 1] === '--kind') ?? 'schema') as GateKind
+  const jsonMode = args.includes('--json')
+  const started = performance.now()
+  const rawCommand = ['sentinel', 'gate:run', ...args]
+  const command = kind === 'onlytools' ? sanitizeOnlytoolsGateCommand(rawCommand) : rawCommand
+  const proofKind = argValue(args, '--proof-kind') ?? `sentinel-${kind}-gate`
+  const proofContext: SentinelProofContext = {
+    taskId: argValue(args, '--task-id'),
+    repo: argValue(args, '--repo'),
+    commit: argValue(args, '--commit'),
+    currentCommit: argValue(args, '--current-commit') ?? currentCommit(),
+    host: argValue(args, '--host'),
+  }
+  const artifactRefs = artifactRefsFromArgs(args)
+  let onlytoolsGateResult: OnlytoolsValidationResult | null = null
+
+  const run = () => {
+    switch (kind) {
+      case 'schema': return cmdValidate()
+      case 'contracts': return cmdContracts()
+      case 'mock': return cmdMockValidate()
+      case 'onlytools': {
+        onlytoolsGateResult = validateOnlytoolsEstate({
+          repoRoot: argValue(args, '--repo-root') ?? argValue(args, '--cwd'),
+          mdnsTimeoutMs: Number.parseInt(argValue(args, '--mdns-timeout') ?? '100', 10),
+          restrictToDiscoveredRoot: true,
+        })
+        const onlytoolsReport = emptyReport()
+        onlytoolsReport.contracts = onlytoolsGateResult.checks.map(check => ({
+          name: `onlytools:${check.section}`,
+          passing: check.status === 'pass',
+        }))
+        return onlytoolsReport
+      }
+      case 'copy': {
+        const copyReport = emptyReport()
+        copyReport.copy = validateCopy({
+          cwd: argValue(args, '--cwd') ?? process.cwd(),
+          requestor: argValue(args, '--requestor'),
+          base: argValue(args, '--base'),
+          head: argValue(args, '--head'),
+          diff: argValue(args, '--diff-file') ? readFileSync(argValue(args, '--diff-file') as string, 'utf8') : undefined,
+          manifest: argValue(args, '--manifest'),
+        })
+        return copyReport
+      }
+      default:
+        throw new Error(`Unsupported gate: ${kind}. Supported: schema, contracts, mock, copy, onlytools`)
+    }
+  }
+
+  let report: StatusReport
+  if (jsonMode) {
+    const original = { log: console.log, warn: console.warn, error: console.error }
+    console.log = () => undefined
+    console.warn = () => undefined
+    console.error = () => undefined
+    try {
+      report = run()
+    } finally {
+      console.log = original.log
+      console.warn = original.warn
+      console.error = original.error
+    }
+  } else {
+    report = run()
+  }
+
+  const issues = kind === 'onlytools'
+    ? onlytoolsIssues(onlytoolsGateResult ?? validateOnlytoolsEstate({
+      repoRoot: argValue(args, '--repo-root') ?? argValue(args, '--cwd'),
+      mdnsTimeoutMs: Number.parseInt(argValue(args, '--mdns-timeout') ?? '100', 10),
+      restrictToDiscoveredRoot: true,
+    }))
+    : statusReportIssues(kind, report)
+  const staleIssue = staleCommitIssue(proofContext)
+  if (staleIssue) issues.push(staleIssue)
+  const result = buildGateResult({
+    kind,
+    command,
+    passed: issues.length === 0,
+    issues,
+    durationMs: Math.round(performance.now() - started),
+    checkedCount: report.schemas.length + report.contracts.length + report.mocks.length + (report.copy?.checkedCount ?? 0),
+    artifactRefs,
+    proofKind,
+    proofContext,
+  })
+
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+  if (result.verdict === 'failed') process.exit(1)
+}
+
+function cmdValidationBundle(): void {
+  const args = process.argv.slice(3)
+  const gateResultPaths = args
+    .map((value, index) => (args[index - 1] === '--gate-result' ? value : null))
+    .filter((value): value is string => value !== null)
+  const gateResults = gateResultPaths.map((path) => JSON.parse(readFileSync(path, 'utf8')) as GateResult)
+  const artifactRefs = [
+    ...artifactRefsFromArgs(args),
+    ...gateResultPaths.map((path) => artifactRef(path, 'sentinel-gate-result')),
+  ]
+  const bundle = buildValidationBundle({
+    gateResults,
+    artifactRefs,
+    requestor: argValue(args, '--requestor'),
+  })
+  process.stdout.write(JSON.stringify(bundle, null, 2) + '\n')
+  if (bundle.summary.verdict === 'failed') process.exit(1)
+}
+
+function cmdDiscover(): void {
+  const args = process.argv.slice(3)
+  const cwd = argValue(args, '--cwd') ?? process.cwd()
+  const result = discoverSentinelRepo(resolve(cwd))
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n')
+}
+
 // ---------------------------------------------------------------------------
 // CLI entry point
 // ---------------------------------------------------------------------------
@@ -1252,6 +1618,11 @@ const writeStatusPath = parseWriteStatus();
     case 'atlas:export':     cmdAtlasExport(); break
     case 'atlas:migrate':    cmdAtlasMigrate(); break
     case 'registry:scan':    cmdRegistryScan(); break
+    case 'copy:validate':    report = cmdCopyValidate(); break
+    case 'discover':         cmdDiscover(); break
+    case 'gate:plan':        cmdGatePlan(); break
+    case 'gate:run':         cmdGateRun(); break
+    case 'validation:bundle': cmdValidationBundle(); break
     case 'quality:check': {
       const passed = await cmdQualityCheck()
       if (!passed) process.exit(1)
@@ -1259,6 +1630,21 @@ const writeStatusPath = parseWriteStatus();
     }
     case 'doctor': {
       const passed = cmdDoctor()
+      if (!passed) process.exit(1)
+      break
+    }
+    case 'onlytools': {
+      const passed = cmdOnlytoolsValidate()
+      if (!passed) process.exit(1)
+      break
+    }
+    case 'validate': {
+      if (process.argv[3] !== 'onlytools') {
+        console.error('Usage: sentinel validate onlytools [--json] [--repo-root <path>] [--mdns-timeout <ms>]')
+        process.exit(1)
+      }
+      process.argv.splice(3, 1)
+      const passed = cmdOnlytoolsValidate()
       if (!passed) process.exit(1)
       break
     }
@@ -1270,7 +1656,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | copy:validate [--base <ref>] [--head <ref>] [--diff-file <path>] [--manifest <path>] [--requestor <slug>] [--json] | discover [--cwd <dir>] | gate:plan [--repo-type <type>] [--task-type <type>] [--kind <kind>] | gate:run --kind <schema|contracts|mock|copy|onlytools> [--json] [--artifact <path>] [--task-id <id>] [--repo <repo>] [--repo-root <path>] [--commit <sha>] [--host <host>] [--proof-kind <kind>] | validation:bundle --gate-result <file> [--requestor <slug>] [--artifact <path>] | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | onlytools [--json] [--repo-root <path>] [--mdns-timeout <ms>] | validate onlytools [--json] [--repo-root <path>] [--mdns-timeout <ms>] | all')
       process.exit(1)
     }
 
@@ -1283,7 +1669,8 @@ const writeStatusPath = parseWriteStatus();
     const hasSchemaErrors = report.schemas.some((s) => !s.valid)
     const hasContractErrors = report.contracts.some((c) => !c.passing)
     const hasMockErrors = report.mocks.some((m) => !m.coverage)
-    if (hasSchemaErrors || hasContractErrors || hasMockErrors) process.exit(1)
+    const hasCopyErrors = report.copy?.verdict === 'failed'
+    if (hasSchemaErrors || hasContractErrors || hasMockErrors || hasCopyErrors) process.exit(1)
   }
 })().catch((e: unknown) => {
   console.error(e instanceof Error ? e.message : String(e))
