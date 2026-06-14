@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "onlytools.manifest.v1",
+  "slug": "sentinel",
+  "name": "Sentinel",
+  "catalog": {
+    "tier": "T0",
+    "classification": "core-tool",
+    "status": "active",
+    "repoPath": "sentinel",
+    "owner": "luke",
+    "releaseOwner": "luke"
+  },
+  "version": {
+    "source": "package",
+    "path": "package.json"
+  },
+  "serviceMode": "cli-only",
+  "environments": [
+    {
+      "slug": "prod",
+      "displayName": "Production",
+      "configRoot": "~/.sentinel",
+      "dataRoot": "~/.sentinel/data",
+      "cacheRoot": "~/.sentinel/cache",
+      "serviceSlug": "sentinel",
+      "fedIdentity": "sentinel",
+      "inheritsFrom": null
+    },
+    {
+      "slug": "dev",
+      "displayName": "Development",
+      "configRoot": "~/.sentinel-dev",
+      "dataRoot": "~/.sentinel-dev/data",
+      "cacheRoot": "~/.sentinel-dev/cache",
+      "serviceSlug": "sentinel-dev",
+      "fedIdentity": "sentinel-dev",
+      "inheritsFrom": null
+    }
+  ],
+  "commands": {
+    "install": {
+      "argv": ["npm", "install"],
+      "cwd": ".",
+      "timeoutSeconds": 300
+    },
+    "test": {
+      "argv": ["npm", "test"],
+      "cwd": ".",
+      "timeoutSeconds": 900
+    },
+    "releaseCheck": {
+      "argv": ["npm", "run", "build"],
+      "cwd": ".",
+      "outputs": ["dist/"],
+      "timeoutSeconds": 600
+    }
+  },
+  "services": [],
+  "dependencies": [],
+  "proof": {
+    "receipts": [
+      {
+        "kind": "onlytools.test",
+        "requiredFor": ["test"],
+        "provider": "proofy"
+      }
+    ],
+    "sentinel": {
+      "required": true,
+      "checks": ["manifest", "graph"]
+    }
+  }
+}
