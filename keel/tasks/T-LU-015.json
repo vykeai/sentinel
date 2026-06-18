@@ -1,0 +1,40 @@
+{
+  "id": "T-LU-015",
+  "title": "works: --help and --version are both broken: they print 'Unknown command: --help/--version' and exit 0 (success). …",
+  "description": "[P1 · works · audit] --help and --version are both broken: they print 'Unknown command: --help/--version' and exit 0 (success). The universal CLI discovery flags do not work, violating the project's own CLI Rule #3 and Definition of Done ('--help output is accurate').\n\nEvidence: node bin/sentinel.js --version -> 'Unknown command: --version', EXIT:0; node bin/sentinel.js --help -> 'Unknown command: --help', EXIT:0. src/cli/index.ts has no help/version handling; dispatcher falls through to unknown-command branch.\n\nFix: Add explicit --help/--version handling in src/cli/index.ts that prints usage/version to stdout and exits 0; keep unknown *commands* exiting 1.\n\nSource: launch-readiness audit 2026-06-18",
+  "product": null,
+  "lane": "launch-readiness",
+  "wave": null,
+  "space": null,
+  "status": "todo",
+  "priority": "high",
+  "platform": null,
+  "assignee": null,
+  "dependsOn": [],
+  "spec": null,
+  "parentId": null,
+  "dueDate": null,
+  "context": [],
+  "acceptanceCriteria": [],
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-06-18T16:46:56.370Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "runStatus": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-06-18T16:46:56.370Z",
+  "updatedAt": "2026-06-18T16:46:56.370Z",
+  "proofReferences": [],
+  "proofOverrides": [],
+  "surfaces": [],
+  "parityPair": null,
+  "validationOverrides": null,
+  "executionMode": null,
+  "taskGraph": null,
+  "runtime": null
+}
