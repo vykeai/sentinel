@@ -1,0 +1,40 @@
+{
+  "id": "T-LU-017",
+  "title": "privacy: Real private product codenames leak into tracked, shipped files: 'fitkind' (12x in README incl. broken ex…",
+  "description": "[P1 · privacy · audit] Real private product codenames leak into tracked, shipped files: 'fitkind' (12x in README incl. broken example paths, plus shipped source src/catalog/types.ts comments with bundle IDs com.fitkind.app / app.fitkind.dev), a named 'Sitches' pilot (docs/sitches-pilot.md, examples/manifests/sitches-pilot.v1.json, keel spec S-002), and 'brandie'. examples/atlas/ was scrubbed to example-* but README/source/docs still reference the old names.\n\nEvidence: git grep -cni fitkind: README.md:12, src/catalog/types.ts:3 ('com.fitkind.app'); git grep sitches: docs/sitches-pilot.md:10, examples/manifests/sitches-pilot.v1.json:14. README.md:220-322 reference manifest.fitkind-mobile.v1.json.\n\nFix: Rename all fitkind/sitches/brandie references to neutral example names (example-app/example-brand) across README, src/catalog/types.ts, docs/sitches-pilot.md, examples/manifests, and keel specs; delete or genericise docs/sitches-pilot.md.\n\nSource: launch-readiness audit 2026-06-18",
+  "product": null,
+  "lane": "launch-readiness",
+  "wave": null,
+  "space": null,
+  "status": "todo",
+  "priority": "high",
+  "platform": null,
+  "assignee": null,
+  "dependsOn": [],
+  "spec": null,
+  "parentId": null,
+  "dueDate": null,
+  "context": [],
+  "acceptanceCriteria": [],
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-06-18T16:46:56.719Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "runStatus": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-06-18T16:46:56.719Z",
+  "updatedAt": "2026-06-18T16:46:56.719Z",
+  "proofReferences": [],
+  "proofOverrides": [],
+  "surfaces": [],
+  "parityPair": null,
+  "validationOverrides": null,
+  "executionMode": null,
+  "taskGraph": null,
+  "runtime": null
+}
