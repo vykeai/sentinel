@@ -1,0 +1,40 @@
+{
+  "id": "T-LU-021",
+  "title": "supply-chain: Stray firebase-debug.log committed at repo root (Firebase CLI artifact). No secrets inside, but it i…",
+  "description": "[P2 · supply-chain · audit] Stray firebase-debug.log committed at repo root (Firebase CLI artifact). No secrets inside, but it is junk that should not ship and is not gitignored.\n\nEvidence: git ls-files shows firebase-debug.log tracked; 11 lines of Firebase MCP debug output dated 2026-03-08, no tokens/paths.\n\nFix: git rm --cached firebase-debug.log and add *.log / firebase-debug.log to .gitignore.\n\nSource: launch-readiness audit 2026-06-18",
+  "product": null,
+  "lane": "launch-readiness",
+  "wave": null,
+  "space": null,
+  "status": "todo",
+  "priority": "medium",
+  "platform": null,
+  "assignee": null,
+  "dependsOn": [],
+  "spec": null,
+  "parentId": null,
+  "dueDate": null,
+  "context": [],
+  "acceptanceCriteria": [],
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-06-18T16:46:57.428Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "runStatus": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-06-18T16:46:57.427Z",
+  "updatedAt": "2026-06-18T16:46:57.427Z",
+  "proofReferences": [],
+  "proofOverrides": [],
+  "surfaces": [],
+  "parityPair": null,
+  "validationOverrides": null,
+  "executionMode": null,
+  "taskGraph": null,
+  "runtime": null
+}
