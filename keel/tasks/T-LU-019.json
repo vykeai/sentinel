@@ -1,0 +1,40 @@
+{
+  "id": "T-LU-019",
+  "title": "catalog: onlytools.manifest.json declares catalog.tier 'T0' but owner tiering classifies sentinel as T1 — tier dri…",
+  "description": "[P1 · catalog · audit] onlytools.manifest.json declares catalog.tier 'T0' but owner tiering classifies sentinel as T1 — tier drift. Also leaks maintainer personal name: owner='luke' and releaseOwner='luke'.\n\nEvidence: onlytools.manifest.json: catalog.tier='T0', classification='core-tool', owner='luke', releaseOwner='luke'. Task context states sentinel=T1.\n\nFix: Set catalog.tier to 'T1' and classification accordingly; replace owner/releaseOwner 'luke' with a non-personal handle/team identifier.\n\nSource: launch-readiness audit 2026-06-18",
+  "product": null,
+  "lane": "launch-readiness",
+  "wave": null,
+  "space": null,
+  "status": "todo",
+  "priority": "high",
+  "platform": null,
+  "assignee": null,
+  "dependsOn": [],
+  "spec": null,
+  "parentId": null,
+  "dueDate": null,
+  "context": [],
+  "acceptanceCriteria": [],
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-06-18T16:46:57.079Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "runStatus": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-06-18T16:46:57.078Z",
+  "updatedAt": "2026-06-18T16:46:57.078Z",
+  "proofReferences": [],
+  "proofOverrides": [],
+  "surfaces": [],
+  "parityPair": null,
+  "validationOverrides": null,
+  "executionMode": null,
+  "taskGraph": null,
+  "runtime": null
+}
