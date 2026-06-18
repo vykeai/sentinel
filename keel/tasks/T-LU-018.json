@@ -1,0 +1,40 @@
+{
+  "id": "T-LU-018",
+  "title": "docs: README's entire Atlas Compatibility section is copy-paste broken: every command references examples/atlas/ma…",
+  "description": "[P1 · docs · audit] README's entire Atlas Compatibility section is copy-paste broken: every command references examples/atlas/manifest.fitkind-mobile.v1.json and session-index.fitkind-mobile.v1.json, which do not exist (actual files are manifest.example-app.v1.json / example-brand). The brand-aware link points to manifest.fitkind-brand-aware.v1.json which is also absent. Three README links use absolute /Users/luke/dev/onlytools/sentinel/... paths that break on any clone.\n\nEvidence: ls examples/atlas/ -> only manifest.example-app.v1.json, manifest.example-brand.v1.json, session-index.example-*.v1.json. ls examples/atlas/manifest.fitkind-brand-aware.v1.json -> No such file. README.md:228,230,254 contain ](/Users/luke/dev/onlytools/sentinel/...) links.\n\nFix: Update README Atlas examples to the real example-app/example-brand filenames; convert the 3 absolute /Users/luke links to repo-relative paths (docs/atlas-compatibility.md).\n\nSource: launch-readiness audit 2026-06-18",
+  "product": null,
+  "lane": "launch-readiness",
+  "wave": null,
+  "space": null,
+  "status": "todo",
+  "priority": "high",
+  "platform": null,
+  "assignee": null,
+  "dependsOn": [],
+  "spec": null,
+  "parentId": null,
+  "dueDate": null,
+  "context": [],
+  "acceptanceCriteria": [],
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-06-18T16:46:56.907Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "runStatus": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-06-18T16:46:56.907Z",
+  "updatedAt": "2026-06-18T16:46:56.907Z",
+  "proofReferences": [],
+  "proofOverrides": [],
+  "surfaces": [],
+  "parityPair": null,
+  "validationOverrides": null,
+  "executionMode": null,
+  "taskGraph": null,
+  "runtime": null
+}
