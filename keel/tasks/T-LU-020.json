@@ -1,0 +1,40 @@
+{
+  "id": "T-LU-020",
+  "title": "privacy: Hardcoded maintainer absolute paths in tracked files break on other machines and leak the home path.",
+  "description": "[P2 · privacy · audit] Hardcoded maintainer absolute paths in tracked files break on other machines and leak the home path.\n\nEvidence: keel/project.json:5 path='/Users/luke/dev/onlytools/sentinel'; src/__tests__/doctor/check.test.ts:38 'node /Users/luke/dev/sentinel/dist/cli/index.js ...'.\n\nFix: Make keel/project.json path repo-relative or regenerate on clone; change the test fixture string to a generic placeholder path.\n\nSource: launch-readiness audit 2026-06-18",
+  "product": null,
+  "lane": "launch-readiness",
+  "wave": null,
+  "space": null,
+  "status": "todo",
+  "priority": "medium",
+  "platform": null,
+  "assignee": null,
+  "dependsOn": [],
+  "spec": null,
+  "parentId": null,
+  "dueDate": null,
+  "context": [],
+  "acceptanceCriteria": [],
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-06-18T16:46:57.253Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "runStatus": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-06-18T16:46:57.252Z",
+  "updatedAt": "2026-06-18T16:46:57.252Z",
+  "proofReferences": [],
+  "proofOverrides": [],
+  "surfaces": [],
+  "parityPair": null,
+  "validationOverrides": null,
+  "executionMode": null,
+  "taskGraph": null,
+  "runtime": null
+}
