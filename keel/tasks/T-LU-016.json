@@ -1,0 +1,40 @@
+{
+  "id": "T-LU-016",
+  "title": "docs: 5 headline commands documented in the README 'What it does' table and shipped as npm scripts (chaos, flows, …",
+  "description": "[P1 · docs · audit] 5 headline commands documented in the README 'What it does' table and shipped as npm scripts (chaos, flows, visual, perf, brain) are NOT wired into the CLI dispatcher — running them errors. The flagship 'Brain analysis' section documents a command the bin cannot run.\n\nEvidence: grep of src/cli/index.ts case labels shows only schema:*, contracts*, mock:*, catalog:*, atlas:*, registry:scan, quality:check, doctor, all. Probe: sentinel chaos|flows|visual|perf|brain each exit 1 'Unknown command'. README.md:29-33,405-408 claim these commands.\n\nFix: Either add dispatcher cases wiring src/chaos, src/flows, src/visual, src/perf, src/brain (modules exist), or remove/mark-as-internal the unimplemented commands from README + package.json scripts.\n\nSource: launch-readiness audit 2026-06-18",
+  "product": null,
+  "lane": "launch-readiness",
+  "wave": null,
+  "space": null,
+  "status": "todo",
+  "priority": "high",
+  "platform": null,
+  "assignee": null,
+  "dependsOn": [],
+  "spec": null,
+  "parentId": null,
+  "dueDate": null,
+  "context": [],
+  "acceptanceCriteria": [],
+  "statusHistory": [
+    {
+      "status": "todo",
+      "ts": "2026-06-18T16:46:56.549Z"
+    }
+  ],
+  "attachments": [],
+  "stage": null,
+  "runStatus": null,
+  "stageHistory": [],
+  "recurring": null,
+  "createdAt": "2026-06-18T16:46:56.549Z",
+  "updatedAt": "2026-06-18T16:46:56.549Z",
+  "proofReferences": [],
+  "proofOverrides": [],
+  "surfaces": [],
+  "parityPair": null,
+  "validationOverrides": null,
+  "executionMode": null,
+  "taskGraph": null,
+  "runtime": null
+}
