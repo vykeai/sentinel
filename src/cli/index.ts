@@ -22,6 +22,7 @@ import { findConfigFile, loadConfig } from '../config/loader.js'
 import { generateAll } from '../schema/index.js'
 import { checkInvariants } from '../schema/validators/invariants.js'
 import { checkStaleness } from '../schema/validators/staleness.js'
+import { lintHardcodedTokens } from '../schema/linters/hardcoded-tokens.js'
 import { checkQuality } from '../schema/validators/quality.js'
 import { scanRegistry } from '../catalog/registry.js'
 import { checkMockIntegration, findFixturePathCandidates } from '../mock/integration.js'
@@ -1228,6 +1229,31 @@ async function cmdQualityCheck(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
+// design:validate — design-token drift + no-hardcoded-values gate
+// ---------------------------------------------------------------------------
+
+function cmdDesignValidate(): boolean {
+  const config = loadConfig()
+  // Reuse the hash-based staleness check for token drift; add the hardcoded-token lint.
+  const results = [checkStaleness(config), lintHardcodedTokens(config)]
+  let ok = true
+  for (const r of results) {
+    const errs = r.issues.filter((i) => i.severity === 'error')
+    if (r.issues.length === 0) {
+      console.log(chalk.green(`✓ ${r.layer}: ${r.checkedCount} checked, clean (${r.durationMs}ms)`))
+    } else {
+      for (const issue of r.issues) {
+        const tag = issue.severity === 'error' ? chalk.red('error') : chalk.yellow('warn ')
+        console.log(`  ${tag} [${issue.layer}/${issue.rule}] ${issue.file}: ${issue.message}`)
+      }
+      if (errs.length) ok = false
+    }
+  }
+  console.log(ok ? chalk.green('✓ design:validate passed') : chalk.red('✗ design:validate failed'))
+  return ok
+}
+
+// ---------------------------------------------------------------------------
 // CLI entry point
 // ---------------------------------------------------------------------------
 
@@ -1252,6 +1278,7 @@ const writeStatusPath = parseWriteStatus();
     case 'atlas:export':     cmdAtlasExport(); break
     case 'atlas:migrate':    cmdAtlasMigrate(); break
     case 'registry:scan':    cmdRegistryScan(); break
+    case 'design:validate': { const passed = cmdDesignValidate(); if (!passed) process.exit(1); break }
     case 'quality:check': {
       const passed = await cmdQualityCheck()
       if (!passed) process.exit(1)
@@ -1270,7 +1297,7 @@ const writeStatusPath = parseWriteStatus();
     }
     default:
       console.error(`Unknown command: ${cmd ?? '(none)'}`)
-      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
+      console.error('Usage: sentinel schema:validate | schema:generate | contracts | contracts:matrix | mock:generate | mock:validate | catalog:capture [--app-variant <name>] | catalog:validate [--atlas-manifest <file> --session-index <file>] | catalog:index [--atlas-manifest <file> --session-index <file> --output-dir <dir>] | catalog:upload | atlas:import | atlas:export | atlas:migrate | registry:scan | design:validate | quality:check [--file <path>] [--json] [--warn] | doctor [--fix] [--json] [--atlas-manifest <file> --session-index <file> --brandie-root <dir>] | all')
       process.exit(1)
     }
 
